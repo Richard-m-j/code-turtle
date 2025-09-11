@@ -62,7 +62,14 @@ jobs:
         # Use curl to download the model, consistent with the working example.
         run: curl -L -o ./model.gguf "${{ env.MODEL_URL }}"
 
-      - name: 5. Generate code diff
+      # ⬇️ ADD THIS STEP HERE ⬇️
+      - name: 5. Install Git
+        run: |
+          apt-get update
+          apt-get install -y git
+      # ⬆️ ADD THIS STEP HERE ⬆️
+
+      - name: 6. Generate code diff
         id: generate_diff
         run: |
           git diff ${{ inputs.base_sha }} ${{ inputs.head_sha }} > diff.txt
@@ -75,7 +82,7 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: 6. Construct Prompt
+      - name: 7. Construct Prompt
         if: steps.generate_diff.outputs.skip == 'false'
         run: |
           PROMPT_FILE="prompt.txt"
@@ -93,7 +100,7 @@ jobs:
           Please provide your review now.
           EOF
 
-      - name: 7. Run LLM Inference
+      - name: 8. Run LLM Inference
         if: steps.generate_diff.outputs.skip == 'false'
         run: |
           echo "Starting LLM inference... This may take a few minutes."
@@ -107,7 +114,7 @@ jobs:
             > review_output.txt
           echo "LLM inference complete."
 
-      - name: 8. Format and Post Comment
+      - name: 9. Format and Post Comment
         if: steps.generate_diff.outputs.skip == 'false'
         env:
           # GITHUB_TOKEN is automatically available to the runner.

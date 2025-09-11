@@ -23,6 +23,7 @@ jobs:
 
     env:
       MODEL_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.model_url || 'https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf' }}
+      LD_LIBRARY_PATH: /llama.cpp
 
     steps:
       - name: Generate Model URL Hash

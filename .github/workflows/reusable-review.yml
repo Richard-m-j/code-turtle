@@ -72,6 +72,8 @@ jobs:
       - name: 6. Generate code diff
         id: generate_diff
         run: |
+          git fetch --prune --unshallow || true
+          
           git diff ${{ inputs.base_sha }} ${{ inputs.head_sha }} > diff.txt
           
           # Check if the diff is empty to avoid running the review on no-change PRs.

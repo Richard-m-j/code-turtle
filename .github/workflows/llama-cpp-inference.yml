@@ -19,38 +19,30 @@ jobs:
   run-inference:
     runs-on: ubuntu-latest
     
-    # Run all steps directly inside the pre-built llama.cpp container
     container: yusiwen/llama.cpp:latest
 
-    # ✅ Set a reliable MODEL_URL for both push and manual triggers
     env:
       MODEL_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.model_url || 'https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf' }}
 
     steps:
-      # ✅ Step 1: Create a stable hash from the MODEL_URL string for the cache key
       - name: Generate Model URL Hash
         id: model_hash
         run: echo "hash=$(echo -n '${{ env.MODEL_URL }}' | sha256sum | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
-      # Step 2: Cache the downloaded AI model using the correct key
       - name: Cache AI Model
         id: cache-model
         uses: actions/cache@v4
         with:
           path: ./model.gguf
-          # Use the stable hash generated in the previous step
           key: ${{ runner.os }}-gguf-model-${{ steps.model_hash.outputs.hash }}
 
-      # Step 3: Download the AI model only if it's not found in the cache
       - name: Download AI Model if not cached
         if: steps.cache-model.outputs.cache-hit != 'true'
-        # Use the reliable environment variable
         run: curl -L -o ./model.gguf "${{ env.MODEL_URL }}"
               
-      # Step 4: Run the inference using the pre-compiled binary in the container
       - name: Run Inference
         run: |
-          /usr/src/app/main \
+          /llama-cli \
             -m ./model.gguf \
             -p "${{ inputs.prompt }}" \
             -n 128 \

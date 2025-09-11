@@ -39,7 +39,7 @@ jobs:
       - name: Download AI Model
         run: |
           mkdir -p ./llama.cpp/models
-          MODEL_URL="https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
+          MODEL_URL="https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf"
           wget -O ./llama.cpp/models/model.gguf "$MODEL_URL"
           
       # Step 5: Run inference with a simple prompt
@@ -48,6 +48,6 @@ jobs:
           cd llama.cpp
           ./build/bin/main \
             -m ./models/model.gguf \
-            -p "Hi AI, what is your name?" \
+            -p "Hi AI, who are you?" \
             -n 64 \
             -ngl 0

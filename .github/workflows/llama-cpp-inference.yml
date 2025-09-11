@@ -1,9 +1,9 @@
 name: Run Llama.cpp Inference using Public Docker Image
 
 on:
-  push:
-    branches:
-      - '**'
+#   push:
+    # branches:
+      # - '**'
   workflow_dispatch:
     inputs:
       prompt:

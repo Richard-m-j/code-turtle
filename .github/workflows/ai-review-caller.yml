@@ -9,18 +9,15 @@ on:
 
 jobs:
   trigger-review:
-    # Call the reusable workflow at the job level
-    uses: ./.github/workflows/reusable-review.yml
+    uses: Richard-m-j/code-turtle/.github/workflows/reusable-review.yml@main
     
-    # Define permissions for the called workflow
     permissions:
+      contents: read          # <-- Add this line
       pull-requests: write
       
-    # Pass inputs to the reusable workflow
     with:
       pr_number: ${{ github.event.pull_request.number }}
       base_sha: ${{ github.event.pull_request.base.sha }}
       head_sha: ${{ github.event.pull_request.head.sha }}
       
-    # Pass secrets to the reusable workflow
     secrets: inherit

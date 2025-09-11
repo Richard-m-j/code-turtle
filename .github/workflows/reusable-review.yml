@@ -28,43 +28,46 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
+    # Use a pre-built Docker container with llama.cpp already compiled.
+    # This removes the need to install dependencies and build from source.
+    container: yusiwen/llama.cpp:latest
+
+    env:
+      # Define the model URL as an environment variable for easy access.
+      MODEL_URL: 'https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct.Q4_K_M.gguf'
+
     steps:
       - name: 1. Checkout repository
         uses: actions/checkout@v4
         with:
+          # Fetch all history for other branches to compare commits
           fetch-depth: 0
 
-      - name: 2. Install llama.cpp dependencies and build
-        run: |
-          echo "Installing build tools and cloning llama.cpp..."
-          sudo apt-get update && sudo apt-get install -y build-essential git wget
-          git clone https://github.com/ggerganov/llama.cpp.git
-          cd llama.cpp
-          echo "Building llama.cpp..."
-          make
-          echo "Build complete."
+      - name: 2. Generate Model URL Hash
+        id: model_hash
+        # Create a unique hash from the model URL for reliable caching.
+        run: echo "hash=$(echo -n '${{ env.MODEL_URL }}' | sha256sum | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
-      - name: 3. Cache and download LLM model
+      - name: 3. Cache AI Model
         id: cache-model
         uses: actions/cache@v4
         with:
-          path: ./model
-          key: llm-model-llama3-8b-q4km
+          # The path where the model will be stored.
+          path: ./model.gguf
+          # The cache key includes the runner's OS and the model hash.
+          key: ${{ runner.os }}-gguf-model-${{ steps.model_hash.outputs.hash }}
 
-      - name: 3b. Download model if not cached
+      - name: 4. Download AI Model if not cached
         if: steps.cache-model.outputs.cache-hit != 'true'
-        run: |
-          echo "Cache miss. Downloading model..."
-          mkdir -p ./model
-          wget -O ./model/model.gguf "https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct.Q4_K_M.gguf"
-          echo "Model download complete."
+        # Use curl to download the model, consistent with the working example.
+        run: curl -L -o ./model.gguf "${{ env.MODEL_URL }}"
 
-      - name: 4. Generate code diff
+      - name: 5. Generate code diff
         id: generate_diff
         run: |
-          echo "Generating diff between ${{ inputs.base_sha }} and ${{ inputs.head_sha }}..."
           git diff ${{ inputs.base_sha }} ${{ inputs.head_sha }} > diff.txt
           
+          # Check if the diff is empty to avoid running the review on no-change PRs.
           if [ ! -s diff.txt ]; then
             echo "No code changes detected. Skipping review."
             echo "skip=true" >> $GITHUB_OUTPUT
@@ -72,12 +75,13 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: 5. Construct Prompt
+      - name: 6. Construct Prompt
         if: steps.generate_diff.outputs.skip == 'false'
         run: |
           PROMPT_FILE="prompt.txt"
           SYSTEM_PROMPT="You are an expert code reviewer AI. Your task is to analyze the following code diff and provide concise, constructive feedback. Focus on potential bugs, logical errors, style violations, and areas for improved clarity or performance. Do not comment on trivial changes. Frame your feedback as helpful suggestions. Output your review in Markdown format."
 
+          # Use a HEREDOC to create the prompt file cleanly.
           cat <<EOF > $PROMPT_FILE
           $SYSTEM_PROMPT
 
@@ -89,28 +93,30 @@ jobs:
           Please provide your review now.
           EOF
 
-      - name: 6. Run LLM Inference
+      - name: 7. Run LLM Inference
         if: steps.generate_diff.outputs.skip == 'false'
         run: |
-          echo "Starting LLM inference... This may take 15-30 minutes."
-          ./llama.cpp/main \
-            -m ./model/model.gguf \
+          echo "Starting LLM inference... This may take a few minutes."
+          # Use the llama-cli executable from the Docker container.
+          /llama.cpp/llama-cli \
+            -m ./model.gguf \
             -f prompt.txt \
             --ctx-size 4096 \
             --n-predict 1024 \
             --temp 0.2 \
-            --no-display-prompt \
             > review_output.txt
           echo "LLM inference complete."
 
-      - name: 7. Format and Post Comment
+      - name: 8. Format and Post Comment
         if: steps.generate_diff.outputs.skip == 'false'
         env:
+          # GITHUB_TOKEN is automatically available to the runner.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ inputs.pr_number }}
         run: |
+          # The GitHub CLI (gh) is pre-installed on GitHub-hosted runners.
           COMMENT_BODY=$(cat <<EOF
-          ### 🐢 AI Code Review from Code-Turtle
+          ### 🤖 AI Code Review
 
           Here are some suggestions based on the latest changes. Please treat these as pointers for consideration, not mandates.
 

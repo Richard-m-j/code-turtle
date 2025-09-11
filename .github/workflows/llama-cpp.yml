@@ -1,11 +1,21 @@
 # .github/workflows/llama-cpp-inference.yml
 
-name: Run Llama.cpp Inference on Push
+name: Run Llama.cpp Inference
 
 on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'The prompt to send to the model'
+        required: true
+        default: 'Hi AI, who are you?'
+        type: string
+  
+  # Also runs on pushes to the main branch
   push:
     branches:
-      - '**'
+      - 'main'
 
 jobs:
   run-inference:
@@ -21,33 +31,54 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential git wget cmake libcurl4-openssl-dev
 
-      # Step 2: Clone the llama.cpp repository
-      - name: Clone llama.cpp repository
+      # Step 2: Cache and Clone llama.cpp
+      - name: Cache llama.cpp repository and build
+        uses: actions/cache@v4
+        id: cache-llama-cpp
+        with:
+          path: ./llama.cpp
+          key: ${{ runner.os }}-llama-cpp-${{ github.sha }} # Re-caches only on new commits to your repo
+          restore-keys: |
+            ${{ runner.os }}-llama-cpp-
+
+      - name: Clone and build llama.cpp
+        # This step only runs if the cache was not restored
+        if: steps.cache-llama-cpp.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/ggerganov/llama.cpp.git
-      
-      # Step 3: Build llama.cpp using CMake
-      - name: Build llama.cpp
-        run: |
           cd llama.cpp
           mkdir build
           cd build
-          cmake ..
+          cmake .. -DLLAMA_BUILD_EXAMPLES=ON
           cmake --build . --config Release
 
-      # Step 4: Download a small GGUF model
+      # Step 3: Cache and Download AI Model
+      - name: Define Model Properties
+        id: model
+        run: echo "url=https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf" >> "$GITHUB_OUTPUT"
+
+      - name: Cache AI model
+        uses: actions/cache@v4
+        id: cache-model
+        with:
+          path: ./llama.cpp/models/model.gguf
+          key: ${{ runner.os }}-model-${{ steps.model.outputs.url }} # Re-downloads only if URL changes
+          restore-keys: |
+            ${{ runner.os }}-model-
+
       - name: Download AI Model
+        # This step only runs if the model cache was not restored
+        if: steps.cache-model.outputs.cache-hit != 'true'
         run: |
           mkdir -p ./llama.cpp/models
-          MODEL_URL="https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf"
-          wget -O ./llama.cpp/models/model.gguf "$MODEL_URL"
+          wget -O ./llama.cpp/models/model.gguf "${{ steps.model.outputs.url }}"
           
-      # Step 5: Run inference with a simple prompt
+      # Step 4: Run inference with the user-provided prompt
       - name: Run Inference
         run: |
           cd llama.cpp
           ./build/bin/main \
             -m ./models/model.gguf \
-            -p "Hi AI, who are you?" \
-            -n 64 \
+            -p "${{ inputs.prompt || 'Write a short story about a robot.' }}" \
+            -n 128 \
             -ngl 0

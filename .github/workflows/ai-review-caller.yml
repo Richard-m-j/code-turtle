@@ -5,23 +5,22 @@ name: Trigger AI Code Review
 
 on:
   pull_request:
-    branches: [ main ]
+    types: [opened, reopened, synchronize]
 
 jobs:
   trigger-review:
-    runs-on: ubuntu-latest
+    # Call the reusable workflow at the job level
+    uses: ./.github/workflows/reusable-review.yml
     
-    # Grant permissions for the called workflow to write a PR comment.
+    # Define permissions for the called workflow
     permissions:
       pull-requests: write
       
-    steps:
-      - name: Call the Reusable Review Workflow
-        # Use a local path to call a reusable workflow in the same repository.
-        uses: ./.github/workflows/reusable-review.yml
-        with:
-          pr_number: ${{ github.event.pull_request.number }}
-          base_sha: ${{ github.event.pull_request.base.sha }}
-          head_sha: ${{ github.event.pull_request.head.sha }}
-        # 'secrets: inherit' is good practice to pass the GITHUB_TOKEN
-        secrets: inherit
+    # Pass inputs to the reusable workflow
+    with:
+      pr_number: ${{ github.event.pull_request.number }}
+      base_sha: ${{ github.event.pull_request.base.sha }}
+      head_sha: ${{ github.event.pull_request.head.sha }}
+      
+    # Pass secrets to the reusable workflow
+    secrets: inherit

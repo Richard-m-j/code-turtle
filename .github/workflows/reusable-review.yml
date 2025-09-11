@@ -62,18 +62,28 @@ jobs:
         # Use curl to download the model, consistent with the working example.
         run: curl -L -o ./model.gguf "${{ env.MODEL_URL }}"
 
-      # ⬇️ ADD THIS STEP HERE ⬇️
       - name: 5. Install Git
         run: |
           apt-get update
           apt-get install -y git
-      # ⬆️ ADD THIS STEP HERE ⬆️
 
       - name: 6. Generate code diff
         id: generate_diff
         run: |
-          git fetch --prune --unshallow || true
+          # Configure git to recognize the directory as safe
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           
+          # Fetch all refs to ensure we have access to the commits
+          git fetch --all --prune
+          
+          # Verify the commits exist (for debugging)
+          echo "Checking if base SHA exists: ${{ inputs.base_sha }}"
+          git cat-file -e ${{ inputs.base_sha }} || echo "Base SHA not found locally"
+          
+          echo "Checking if head SHA exists: ${{ inputs.head_sha }}"
+          git cat-file -e ${{ inputs.head_sha }} || echo "Head SHA not found locally"
+          
+          # Generate the diff
           git diff ${{ inputs.base_sha }} ${{ inputs.head_sha }} > diff.txt
           
           # Check if the diff is empty to avoid running the review on no-change PRs.
@@ -82,6 +92,7 @@ jobs:
             echo "skip=true" >> $GITHUB_OUTPUT
           else
             echo "skip=false" >> $GITHUB_OUTPUT
+            echo "Diff generated successfully. Size: $(wc -c < diff.txt) bytes"
           fi
 
       - name: 7. Construct Prompt

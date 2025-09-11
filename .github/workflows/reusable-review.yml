@@ -29,37 +29,30 @@ jobs:
     timeout-minutes: 60
 
     # Use a pre-built Docker container with llama.cpp already compiled.
-    # This removes the need to install dependencies and build from source.
     container: yusiwen/llama.cpp:latest
 
     env:
-      # Define the model URL as an environment variable for easy access.
       MODEL_URL: 'https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct.Q4_K_M.gguf'
 
     steps:
       - name: 1. Checkout repository
         uses: actions/checkout@v4
         with:
-          # Fetch all history for other branches to compare commits
           fetch-depth: 0
 
       - name: 2. Generate Model URL Hash
         id: model_hash
-        # Create a unique hash from the model URL for reliable caching.
         run: echo "hash=$(echo -n '${{ env.MODEL_URL }}' | sha256sum | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
       - name: 3. Cache AI Model
         id: cache-model
         uses: actions/cache@v4
         with:
-          # The path where the model will be stored.
           path: ./model.gguf
-          # The cache key includes the runner's OS and the model hash.
           key: ${{ runner.os }}-gguf-model-${{ steps.model_hash.outputs.hash }}
 
       - name: 4. Download AI Model if not cached
         if: steps.cache-model.outputs.cache-hit != 'true'
-        # Use curl to download the model, consistent with the working example.
         run: curl -L -o ./model.gguf "${{ env.MODEL_URL }}"
 
       - name: 5. Install Git
@@ -70,23 +63,8 @@ jobs:
       - name: 6. Generate code diff
         id: generate_diff
         run: |
-          # Configure git to recognize the directory as safe
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          
-          # Fetch all refs to ensure we have access to the commits
-          git fetch --all --prune
-          
-          # Verify the commits exist (for debugging)
-          echo "Checking if base SHA exists: ${{ inputs.base_sha }}"
-          git cat-file -e ${{ inputs.base_sha }} || echo "Base SHA not found locally"
-          
-          echo "Checking if head SHA exists: ${{ inputs.head_sha }}"
-          git cat-file -e ${{ inputs.head_sha }} || echo "Head SHA not found locally"
-          
-          # Generate the diff
+          git fetch --prune --unshallow || true
           git diff ${{ inputs.base_sha }} ${{ inputs.head_sha }} > diff.txt
-          
-          # Check if the diff is empty to avoid running the review on no-change PRs.
           if [ ! -s diff.txt ]; then
             echo "No code changes detected. Skipping review."
             echo "skip=true" >> $GITHUB_OUTPUT

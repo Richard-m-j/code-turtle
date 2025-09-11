@@ -1,5 +1,5 @@
 # .github/workflows/ai-review-caller.yml
-# This workflow triggers the reusable code review workflow within the same repository.
+# This workflow triggers the reusable code review workflow.
 
 name: Trigger AI Code Review
 
@@ -12,7 +12,7 @@ jobs:
     uses: Richard-m-j/code-turtle/.github/workflows/reusable-review.yml@main
     
     permissions:
-      contents: read          # <-- Add this line
+      contents: read
       pull-requests: write
       
     with:

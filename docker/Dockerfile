@@ -1,88 +1,48 @@
-ARG UBUNTU_VERSION=22.04
-
-FROM ubuntu:$UBUNTU_VERSION AS build
-
-ARG TARGETARCH
+# Base stage with dependencies
+FROM ubuntu:24.04 AS base
 
 RUN apt-get update && \
-    apt-get install -y build-essential git cmake libcurl4-openssl-dev
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+        git \
+        libopenblas-dev \
+        ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+# Build stage: Compile llama.cpp
+FROM base AS build
 
-COPY . .
+ARG COMMIT=master
 
-RUN if [ "$TARGETARCH" = "amd64" ] || [ "$TARGETARCH" = "arm64" ]; then \
-        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DLLAMA_BUILD_TESTS=OFF -DGGML_BACKEND_DL=ON -DGGML_CPU_ALL_VARIANTS=ON; \
-    else \
-        echo "Unsupported architecture"; \
-        exit 1; \
-    fi && \
-    cmake --build build -j $(nproc)
+WORKDIR /llama.cpp
 
-RUN mkdir -p /app/lib && \
-    find build -name "*.so" -exec cp {} /app/lib \;
+RUN git clone --depth 1 --branch ${COMMIT} https://github.com/ggml-org/llama.cpp . && \
+    mkdir build && cd build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DLLAMA_BLAS=ON \
+        -DLLAMA_BLAS_VENDOR=OpenBLAS && \
+    cmake --build . --config Release --parallel $(nproc)
 
-RUN mkdir -p /app/full \
-    && cp build/bin/* /app/full \
-    && cp *.py /app/full \
-    && cp -r gguf-py /app/full \
-    && cp -r requirements /app/full \
-    && cp requirements.txt /app/full \
-    && cp .devops/tools.sh /app/full/tools.sh
-
-## Base image
-FROM ubuntu:$UBUNTU_VERSION AS base
-
-RUN apt-get update \
-    && apt-get install -y libgomp1 curl\
-    && apt autoremove -y \
-    && apt clean -y \
-    && rm -rf /tmp/* /var/tmp/* \
-    && find /var/cache/apt/archives /var/lib/apt/lists -not -name lock -type f -delete \
-    && find /var/cache -type f -delete
-
-COPY --from=build /app/lib/ /app
-
-### Full
-FROM base AS full
-
-COPY --from=build /app/full /app
-
-WORKDIR /app
-
-RUN apt-get update \
-    && apt-get install -y \
-    git \
-    python3 \
-    python3-pip \
-    && pip install --upgrade pip setuptools wheel \
-    && pip install -r requirements.txt \
-    && apt autoremove -y \
-    && apt clean -y \
-    && rm -rf /tmp/* /var/tmp/* \
-    && find /var/cache/apt/archives /var/lib/apt/lists -not -name lock -type f -delete \
-    && find /var/cache -type f -delete
-
-ENTRYPOINT ["/app/tools.sh"]
-
-### Light, CLI only
+# Light target: Basic main and quantize
 FROM base AS light
 
-COPY --from=build /app/full/llama-cli /app
+COPY --from=build /llama.cpp/build/bin/main /bin/main
+COPY --from=build /llama.cpp/build/bin/quantize /bin/quantize
 
-WORKDIR /app
+ENTRYPOINT ["/bin/main"]
 
-ENTRYPOINT [ "/app/llama-cli" ]
+# Server target: Adds server executable
+FROM light AS server
 
-### Server, Server only
-FROM base AS server
+COPY --from=build /llama.cpp/build/bin/server /bin/server
 
-ENV LLAMA_ARG_HOST=0.0.0.0
+ENTRYPOINT ["/bin/server"]
 
-COPY --from=build /app/full/llama-server /app
+# Full target: All binaries
+FROM base AS full
 
-WORKDIR /app
+COPY --from=build /llama.cpp/build/bin/* /bin/
 
-HEALTHCHECK CMD [ "curl", "-f", "http://localhost:8080/health" ]
-
-ENTRYPOINT [ "/app/llama-server" ]
+ENTRYPOINT ["/bin/main"]

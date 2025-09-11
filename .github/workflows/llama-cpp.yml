@@ -1,0 +1,55 @@
+# .github/workflows/llama-cpp-inference.yml
+
+name: Run Llama.cpp Inference
+
+# This allows the workflow to be triggered manually from the GitHub Actions UI
+on:
+  workflow_dispatch:
+
+jobs:
+  run-inference:
+    # Use the latest Ubuntu runner available
+    runs-on: ubuntu-latest
+
+    steps:
+      - name:  checkout repository
+        uses: actions/checkout@v4
+      
+      # Step 1: Install necessary build tools
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git wget
+
+      # Step 2: Clone the llama.cpp repository
+      - name: Clone llama.cpp repository
+        run: |
+          git clone https://github.com/ggerganov/llama.cpp.git
+      
+      # Step 3: Build llama.cpp using 'make'
+      # This compiles the source code into an executable file called 'main'
+      - name: Build llama.cpp
+        run: |
+          cd llama.cpp
+          make
+
+      # Step 4: Download a small GGUF model
+      # We use a very small, quantized TinyLlama model for quick execution
+      - name: Download AI Model
+        run: |
+          MODEL_URL="https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1B-chat-v1.0.Q2_K.gguf"
+          wget -O ./llama.cpp/models/model.gguf "$MODEL_URL"
+          
+      # Step 5: Run inference with a simple prompt
+      # -m: specifies the model file
+      # -p: specifies the prompt
+      # -n: sets the number of tokens to predict
+      # -ngl 0: ensures we run on CPU only, as GitHub Actions runners do not have GPUs
+      - name: Run Inference
+        run: |
+          cd llama.cpp
+          ./main \
+            -m ./models/model.gguf \
+            -p "Hi AI, what is your name?" \
+            -n 64 \
+            -ngl 0

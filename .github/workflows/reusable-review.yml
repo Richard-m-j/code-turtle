@@ -1,0 +1,123 @@
+# .github/workflows/reusable-review.yml
+# This is the main, reusable workflow that performs the code review.
+
+name: Reusable AI Code Review
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        description: 'The number of the pull request'
+        required: true
+        type: number
+      base_sha:
+        description: 'The base SHA of the pull request'
+        required: true
+        type: string
+      head_sha:
+        description: 'The head SHA of the pull request'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  code-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: 1. Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 2. Install llama.cpp dependencies and build
+        run: |
+          echo "Installing build tools and cloning llama.cpp..."
+          sudo apt-get update && sudo apt-get install -y build-essential git wget
+          git clone https://github.com/ggerganov/llama.cpp.git
+          cd llama.cpp
+          echo "Building llama.cpp..."
+          make
+          echo "Build complete."
+
+      - name: 3. Cache and download LLM model
+        id: cache-model
+        uses: actions/cache@v4
+        with:
+          path: ./model
+          key: llm-model-llama3-8b-q4km
+
+      - name: 3b. Download model if not cached
+        if: steps.cache-model.outputs.cache-hit != 'true'
+        run: |
+          echo "Cache miss. Downloading model..."
+          mkdir -p ./model
+          wget -O ./model/model.gguf "https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct.Q4_K_M.gguf"
+          echo "Model download complete."
+
+      - name: 4. Generate code diff
+        id: generate_diff
+        run: |
+          echo "Generating diff between ${{ inputs.base_sha }} and ${{ inputs.head_sha }}..."
+          git diff ${{ inputs.base_sha }} ${{ inputs.head_sha }} > diff.txt
+          
+          if [ ! -s diff.txt ]; then
+            echo "No code changes detected. Skipping review."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 5. Construct Prompt
+        if: steps.generate_diff.outputs.skip == 'false'
+        run: |
+          PROMPT_FILE="prompt.txt"
+          SYSTEM_PROMPT="You are an expert code reviewer AI. Your task is to analyze the following code diff and provide concise, constructive feedback. Focus on potential bugs, logical errors, style violations, and areas for improved clarity or performance. Do not comment on trivial changes. Frame your feedback as helpful suggestions. Output your review in Markdown format."
+
+          cat <<EOF > $PROMPT_FILE
+          $SYSTEM_PROMPT
+
+          Here is the code diff to review:
+          \`\`\`diff
+          $(cat diff.txt)
+          \`\`\`
+
+          Please provide your review now.
+          EOF
+
+      - name: 6. Run LLM Inference
+        if: steps.generate_diff.outputs.skip == 'false'
+        run: |
+          echo "Starting LLM inference... This may take 15-30 minutes."
+          ./llama.cpp/main \
+            -m ./model/model.gguf \
+            -f prompt.txt \
+            --ctx-size 4096 \
+            --n-predict 1024 \
+            --temp 0.2 \
+            --no-display-prompt \
+            > review_output.txt
+          echo "LLM inference complete."
+
+      - name: 7. Format and Post Comment
+        if: steps.generate_diff.outputs.skip == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          COMMENT_BODY=$(cat <<EOF
+          ### 🐢 AI Code Review from Code-Turtle
+
+          Here are some suggestions based on the latest changes. Please treat these as pointers for consideration, not mandates.
+
+          ---
+
+          $(cat review_output.txt)
+          EOF
+          )
+          
+          gh pr comment $PR_NUMBER --body "$COMMENT_BODY"

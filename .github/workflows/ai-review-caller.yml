@@ -1,0 +1,21 @@
+# .github/workflows/ai-review-caller.yml
+# This workflow triggers the reusable code review action from the code-turtle repo.
+
+name: Trigger AI Code Review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  trigger-review:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Call the Reusable Review Workflow
+        uses: Richard-m-j/code-turtle/.github/workflows/reusable-review.yml@main
+        with:
+          pr_number: ${{ github.event.pull_request.number }}
+          base_sha: ${{ github.event.pull_request.base.sha }}
+          head_sha: ${{ github.event.pull_request.head.sha }}
+        secrets: inherit

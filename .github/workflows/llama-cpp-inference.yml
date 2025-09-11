@@ -35,8 +35,7 @@ jobs:
       # Step 2: Download the AI model only if it's not found in the cache
       - name: Download AI Model if not cached
         if: steps.cache-model.outputs.cache-hit != 'true'
-        # The container has wget pre-installed
-        run: wget -O ./model.gguf "${{ inputs.model_url }}"
+        run: curl -L -o ./model.gguf "${{ inputs.model_url }}"
               
       # Step 3: Run the inference using the pre-compiled binary in the container
       - name: Run Inference

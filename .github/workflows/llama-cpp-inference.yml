@@ -42,7 +42,7 @@ jobs:
               
       - name: Run Inference
         run: |
-          /llama-cli \
+          /llama.cpp/llama-cli \
             -m ./model.gguf \
             -p "${{ inputs.prompt }}" \
             -n 128 \

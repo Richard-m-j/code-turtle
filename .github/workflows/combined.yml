@@ -25,11 +25,17 @@ jobs:
       - name: 2. Install llama.cpp dependencies and build
         run: |
           echo "Installing build tools and cloning llama.cpp..."
-          sudo apt-get update && sudo apt-get install -y build-essential git wget
+          # Add 'cmake' to the list of dependencies
+          sudo apt-get update && sudo apt-get install -y build-essential git wget cmake
+          
           git clone https://github.com/ggerganov/llama.cpp.git
           cd llama.cpp
-          echo "Building llama.cpp..."
-          make
+          
+          echo "Building llama.cpp with CMake..."
+          # Replace 'make' with the new CMake build commands
+          cmake .
+          cmake --build .
+          
           echo "Build complete."
 
       - name: 3. Cache and download LLM model

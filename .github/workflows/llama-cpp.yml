@@ -1,10 +1,12 @@
 # .github/workflows/llama-cpp-inference.yml
 
-name: Run Llama.cpp Inference
+name: Run Llama.cpp Inference on Push
 
-# This allows the workflow to be triggered manually from the GitHub Actions UI
+# This workflow now triggers automatically on a 'push' event to any branch
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - '**' # The '**' is a wildcard that matches all branches
 
 jobs:
   run-inference:
@@ -12,43 +14,44 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name:  checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
       
-      # Step 1: Install necessary build tools
+      # Step 1: Install necessary build tools (cmake is now needed)
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git wget
+          sudo apt-get install -y build-essential git wget cmake
 
       # Step 2: Clone the llama.cpp repository
       - name: Clone llama.cpp repository
         run: |
           git clone https://github.com/ggerganov/llama.cpp.git
       
-      # Step 3: Build llama.cpp using 'make'
-      # This compiles the source code into an executable file called 'main'
+      # Step 3: Build llama.cpp using CMake
+      # This is the corrected build process
       - name: Build llama.cpp
         run: |
           cd llama.cpp
-          make
+          mkdir build
+          cd build
+          cmake ..
+          cmake --build . --config Release
 
       # Step 4: Download a small GGUF model
-      # We use a very small, quantized TinyLlama model for quick execution
       - name: Download AI Model
         run: |
+          # Create the models directory if it doesn't exist
+          mkdir -p ./llama.cpp/models
           MODEL_URL="https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1B-chat-v1.0.Q2_K.gguf"
           wget -O ./llama.cpp/models/model.gguf "$MODEL_URL"
           
       # Step 5: Run inference with a simple prompt
-      # -m: specifies the model file
-      # -p: specifies the prompt
-      # -n: sets the number of tokens to predict
-      # -ngl 0: ensures we run on CPU only, as GitHub Actions runners do not have GPUs
+      # Note: The executable path is now inside the 'build/bin' directory
       - name: Run Inference
         run: |
           cd llama.cpp
-          ./main \
+          ./build/bin/main \
             -m ./models/model.gguf \
             -p "Hi AI, what is your name?" \
             -n 64 \

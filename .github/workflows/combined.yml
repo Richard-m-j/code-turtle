@@ -25,16 +25,16 @@ jobs:
       - name: 2. Install llama.cpp dependencies and build
         run: |
           echo "Installing build tools and cloning llama.cpp..."
-          # Add 'cmake' to the list of dependencies
+          # Add cmake to dependencies
           sudo apt-get update && sudo apt-get install -y build-essential git wget cmake
           
           git clone https://github.com/ggerganov/llama.cpp.git
           cd llama.cpp
           
           echo "Building llama.cpp with CMake..."
-          # Replace 'make' with the new CMake build commands
-          cmake .
-          cmake --build .
+          # Use the official CMake build process
+          cmake -B build
+          cmake --build build --config Release
           
           echo "Build complete."
 
@@ -87,7 +87,8 @@ jobs:
         if: steps.generate_diff.outputs.skip == 'false'
         run: |
           echo "Starting LLM inference... This may take 15-30 minutes."
-          ./llama.cpp/main \
+          # Update the path to the executable, now located in the build/bin directory
+          ./llama.cpp/build/bin/main \
             -m ./model/model.gguf \
             -f prompt.txt \
             --ctx-size 4096 \

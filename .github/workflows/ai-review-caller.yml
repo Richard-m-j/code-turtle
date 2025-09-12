@@ -1,11 +1,7 @@
 # .github/workflows/ai-review-caller.yml
+# This workflow triggers the reusable code review workflow within the same repository.
 
 name: Trigger AI Code Review
-
-# Top-level permissions (important: the reusable workflow uses these permissions)
-permissions:
-  pull-requests: write
-  contents: read
 
 on:
   pull_request:
@@ -20,46 +16,23 @@ jobs:
       - name: 1. Checkout repository
         uses: actions/checkout@v4
         with:
+          # Fetch all history for all branches and tags
           fetch-depth: 0
 
-      - name: 2. Generate diff (robust fetch + safe truncation)
+      - name: 2. Generate diff
         id: diff
         run: |
-          set -euo pipefail
-
-          BASE_REF="${{ github.event.pull_request.base.ref }}"
-          HEAD_REF="${{ github.event.pull_request.head.ref }}"
-          PR_NUM="${{ github.event.pull_request.number }}"
-
-          echo "Base ref: $BASE_REF"
-          echo "Head ref: $HEAD_REF"
-          echo "PR number: $PR_NUM"
-
-          # Try to fetch base/head and the PR head ref as fallback (works for forks)
-          git fetch --no-tags --prune --depth=1 origin "$BASE_REF" || true
-          git fetch --no-tags --prune --depth=1 origin "$HEAD_REF" || true
-          git fetch --no-tags --prune --depth=1 origin "refs/pull/${PR_NUM}/head:pr_head" || true
-
-          # Produce a full diff if possible; tolerate failure
-          if git rev-parse --verify origin/"$BASE_REF" >/dev/null 2>&1 && git rev-parse --verify pr_head >/dev/null 2>&1; then
-            git diff origin/"$BASE_REF" pr_head > /tmp/full_diff.txt || true
-          else
-            # fallback to diff between the two SHAs (may work for some cases)
-            git diff "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" > /tmp/full_diff.txt || true
-          fi
-
-          # Truncate to keep outputs reliable (adjust bytes if you want)
-          head -c 200000 /tmp/full_diff.txt > /tmp/diff_snippet.txt || true
-
-          # Safely push multi-line output to job outputs using delimiter
-          echo "diff<<EOF" >> $GITHUB_OUTPUT
-          cat /tmp/diff_snippet.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          git fetch origin ${{ github.event.pull_request.base.sha }}
+          git fetch origin ${{ github.event.pull_request.head.sha }}
+          # Use a HEREDOC to handle multi-line diff output
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "diff<<$EOF" >> $GITHUB_OUTPUT
+          git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
 
   trigger-review:
     needs: generate-diff
     uses: ./.github/workflows/reusable-review.yml
-    # keep job-level explicit permission as an additional hint (top-level is the authority)
     permissions:
       pull-requests: write
     with:

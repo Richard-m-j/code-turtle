@@ -43,6 +43,8 @@ jobs:
         run: curl -L -o ./model.gguf "${{ env.MODEL_URL }}"
 
       - name: 4. Construct Prompt
+        env:
+          CODE_DIFF: ${{ inputs.code_diff }}
         run: |
           PROMPT_FILE="prompt.txt"
           SYSTEM_PROMPT="You are an expert code reviewer AI. Your task is to analyze the following code diff and provide concise, constructive feedback. Focus on potential bugs, logical errors, style violations, and areas for improved clarity or performance. Do not comment on trivial changes. Frame your feedback as helpful suggestions. Output your review in Markdown format."
@@ -52,7 +54,7 @@ jobs:
 
           Here is the code diff to review:
           \`\`\`diff
-          ${{ inputs.code_diff }}
+          $CODE_DIFF
           \`\`\`
 
           Please provide your review now.
@@ -74,14 +76,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ inputs.pr_number }}
+          REVIEW_CONTENT: ${{ steps.comment.outputs.content }}
         run: |
-          # Install GitHub CLI
           apt-get update && apt-get install -y gh
 
-          # Safely read the review output into a variable
-          REVIEW_CONTENT=$(cat review_output.txt)
-          
-          # Use a HEREDOC to assign the final comment body to a variable
           COMMENT_BODY=$(cat <<EOF
           ### 🤖 AI Code Review
 
@@ -89,9 +87,8 @@ jobs:
 
           ---
 
-          $REVIEW_CONTENT
+          $(cat review_output.txt)
           EOF
           )
-          
-          # Post the comment to the PR
+
           gh pr comment $PR_NUMBER --body "$COMMENT_BODY"

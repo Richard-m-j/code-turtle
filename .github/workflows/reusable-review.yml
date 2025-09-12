@@ -22,31 +22,24 @@ jobs:
   code-review:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-
-    # Use a pre-built Docker container with llama.cpp already compiled.
     container: yusiwen/llama.cpp:latest
-
     env:
       MODEL_URL: 'https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct.Q4_K_M.gguf'
 
     steps:
       - name: 1. Generate Model URL Hash
         id: model_hash
-        # Create a unique hash from the model URL for reliable caching.
         run: echo "hash=$(echo -n '${{ env.MODEL_URL }}' | sha256sum | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
       - name: 2. Cache AI Model
         id: cache-model
         uses: actions/cache@v4
         with:
-          # The path where the model will be stored.
           path: ./model.gguf
-          # The cache key includes the runner's OS and the model hash.
           key: ${{ runner.os }}-gguf-model-${{ steps.model_hash.outputs.hash }}
 
       - name: 3. Download AI Model if not cached
         if: steps.cache-model.outputs.cache-hit != 'true'
-        # Use curl to download the model, consistent with the working example.
         run: curl -L -o ./model.gguf "${{ env.MODEL_URL }}"
 
       - name: 4. Construct Prompt
@@ -54,7 +47,6 @@ jobs:
           PROMPT_FILE="prompt.txt"
           SYSTEM_PROMPT="You are an expert code reviewer AI. Your task is to analyze the following code diff and provide concise, constructive feedback. Focus on potential bugs, logical errors, style violations, and areas for improved clarity or performance. Do not comment on trivial changes. Frame your feedback as helpful suggestions. Output your review in Markdown format."
 
-          # Use a HEREDOC to create the prompt file cleanly.
           cat <<EOF > $PROMPT_FILE
           $SYSTEM_PROMPT
 
@@ -69,7 +61,6 @@ jobs:
       - name: 5. Run LLM Inference
         run: |
           echo "Starting LLM inference... This may take a few minutes."
-          # Use the llama-cli executable from the Docker container.
           /llama.cpp/llama-cli \
             -m ./model.gguf \
             -f prompt.txt \
@@ -81,14 +72,16 @@ jobs:
 
       - name: 6. Format and Post Comment
         env:
-          # GITHUB_TOKEN is automatically available to the runner.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ inputs.pr_number }}
         run: |
-          # The GitHub CLI (gh) is pre-installed on GitHub-hosted runners, but not in this container.
-          # We need to install it.
+          # Install GitHub CLI
           apt-get update && apt-get install -y gh
 
+          # Safely read the review output into a variable
+          REVIEW_CONTENT=$(cat review_output.txt)
+          
+          # Use a HEREDOC to assign the final comment body to a variable
           COMMENT_BODY=$(cat <<EOF
           ### 🤖 AI Code Review
 
@@ -96,8 +89,9 @@ jobs:
 
           ---
 
-          $(cat review_output.txt)
+          $REVIEW_CONTENT
           EOF
           )
-
+          
+          # Post the comment to the PR
           gh pr comment $PR_NUMBER --body "$COMMENT_BODY"

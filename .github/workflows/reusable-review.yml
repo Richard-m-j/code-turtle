@@ -76,11 +76,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ inputs.pr_number }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          # Install both git and the GitHub CLI
           apt-get update && apt-get install -y git gh
           
-          # Combine the header and the AI review into a single file
           {
             echo "### 🤖 AI Code Review"
             echo ""
@@ -91,5 +90,5 @@ jobs:
             cat review_output.txt
           } > final_comment.md
 
-          # Pass the final comment file to the GitHub CLI
-          gh pr comment $PR_NUMBER --body-file final_comment.md
+          # Explicitly tell gh which repository to use with the --repo flag
+          gh pr comment $PR_NUMBER --repo $GH_REPO --body-file final_comment.md

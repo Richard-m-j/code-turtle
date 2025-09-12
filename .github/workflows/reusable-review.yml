@@ -35,7 +35,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ./model.gguf
-          key: ${{ runner.os }}-gguf-model-${{ steps.model_hash.outputs.hash }}
+          # The primary key is specific, including the Git ref.
+          key: ${{ runner.os }}-gguf-model-${{ steps.model_hash.outputs.hash }}-${{ github.ref }}
+          # The restore key is a fallback that finds the latest cache with the same model hash, regardless of the branch.
+          restore-keys: |
+            ${{ runner.os }}-gguf-model-${{ steps.model_hash.outputs.hash }}-
 
       - name: 3. Download AI Model if not cached
         if: steps.cache-model.outputs.cache-hit != 'true'
@@ -90,5 +94,4 @@ jobs:
             cat review_output.txt
           } > final_comment.md
 
-          # Explicitly tell gh which repository to use with the --repo flag
           gh pr comment $PR_NUMBER --repo $GH_REPO --body-file final_comment.md

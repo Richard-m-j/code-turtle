@@ -60,7 +60,7 @@ jobs:
 
       - name: 5. Run LLM Inference
         env:
-          LD_LIBRARY_PATH: /llama.cpp # <-- This is the fix
+          LD_LIBRARY_PATH: /llama.cpp
         run: |
           echo "Starting LLM inference... This may take a few minutes."
           /llama.cpp/llama-cli \
@@ -78,16 +78,19 @@ jobs:
           PR_NUMBER: ${{ inputs.pr_number }}
         run: |
           apt-get update && apt-get install -y gh
-          # Safely read the review output into a variable to avoid syntax errors
-          REVIEW_CONTENT=$(cat review_output.txt)
-          COMMENT_BODY=$(cat <<EOF
-          ### 🤖 AI Code Review
+          
+          # Combine the header and the AI review into a single file
+          {
+            echo "### 🤖 AI Code Review"
+            echo ""
+            echo "Here are some suggestions based on the latest changes. Please treat these as pointers for consideration, not mandates."
+            echo ""
+            echo "---"
+            echo ""
+            cat review_output.txt
+          } > final_comment.md
 
-          Here are some suggestions based on the latest changes. Please treat these as pointers for consideration, not mandates.
-
-          ---
-
-          $REVIEW_CONTENT
-          EOF
-          )
-          gh pr comment $PR_NUMBER --body "$COMMENT_BODY"
+          # Pipe the final comment directly to the GitHub CLI
+          # The '--body-file -' argument tells 'gh' to read the body from standard input.
+          # This is the safest way to handle multi-line content with special characters.
+          gh pr comment $PR_NUMBER --body-file final_comment.md

@@ -72,7 +72,7 @@ jobs:
         continue-on-error: true
         run: |
           echo "Starting LLM inference... This may take a few minutes."
-          ./llama-cli \
+          /home/appuser/llama-cli \
             -m ./model.gguf \
             -f prompt.txt \
             --ctx-size 4096 \

@@ -22,8 +22,7 @@ jobs:
   code-review:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    # The 'light' image is purpose-built for this workflow
-    container: ghcr.io/richard-m-j/llama.cpp:light
+    container: ghcr.io/richard-m-j/llama.cpp:light # Or your specific image name
     env:
       MODEL_URL: ${{ inputs.model_url }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -82,7 +81,9 @@ jobs:
             > review_output.txt
           echo "LLM inference complete."
 
-      - name: 7. Format and Post Comment ✨
+      - name: 7. Format and Post Comment
+        # **FIX**: Use the Bash shell to support the '[[' syntax
+        shell: bash
         run: |
           if [[ ${{ steps.inference.outcome }} == 'failure' ]]; then
             {

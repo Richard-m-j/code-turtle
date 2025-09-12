@@ -1,5 +1,4 @@
 # .github/workflows/reusable-review.yml
-# This is the main, reusable workflow that performs the code review.
 
 name: Reusable AI Code Review
 
@@ -48,7 +47,6 @@ jobs:
         run: |
           PROMPT_FILE="prompt.txt"
           SYSTEM_PROMPT="You are an expert code reviewer AI. Your task is to analyze the following code diff and provide concise, constructive feedback. Focus on potential bugs, logical errors, style violations, and areas for improved clarity or performance. Do not comment on trivial changes. Frame your feedback as helpful suggestions. Output your review in Markdown format."
-
           cat <<EOF > $PROMPT_FILE
           $SYSTEM_PROMPT
 
@@ -61,6 +59,8 @@ jobs:
           EOF
 
       - name: 5. Run LLM Inference
+        env:
+          LD_LIBRARY_PATH: /llama.cpp # <-- This is the fix
         run: |
           echo "Starting LLM inference... This may take a few minutes."
           /llama.cpp/llama-cli \
@@ -76,10 +76,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ inputs.pr_number }}
-          REVIEW_CONTENT: ${{ steps.comment.outputs.content }}
         run: |
           apt-get update && apt-get install -y gh
-
+          # Safely read the review output into a variable to avoid syntax errors
+          REVIEW_CONTENT=$(cat review_output.txt)
           COMMENT_BODY=$(cat <<EOF
           ### 🤖 AI Code Review
 
@@ -87,8 +87,7 @@ jobs:
 
           ---
 
-          $(cat review_output.txt)
+          $REVIEW_CONTENT
           EOF
           )
-
           gh pr comment $PR_NUMBER --body "$COMMENT_BODY"

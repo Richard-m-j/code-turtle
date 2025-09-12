@@ -77,7 +77,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ inputs.pr_number }}
         run: |
-          apt-get update && apt-get install -y gh
+          # Install both git and the GitHub CLI
+          apt-get update && apt-get install -y git gh
           
           # Combine the header and the AI review into a single file
           {
@@ -90,7 +91,5 @@ jobs:
             cat review_output.txt
           } > final_comment.md
 
-          # Pipe the final comment directly to the GitHub CLI
-          # The '--body-file -' argument tells 'gh' to read the body from standard input.
-          # This is the safest way to handle multi-line content with special characters.
+          # Pass the final comment file to the GitHub CLI
           gh pr comment $PR_NUMBER --body-file final_comment.md

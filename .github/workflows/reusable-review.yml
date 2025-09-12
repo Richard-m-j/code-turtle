@@ -10,17 +10,12 @@ on:
         description: 'The number of the pull request'
         required: true
         type: number
-      base_sha:
-        description: 'The base SHA of the pull request'
-        required: true
-        type: string
-      head_sha:
-        description: 'The head SHA of the pull request'
+      code_diff:
+        description: 'The code diff string to be reviewed'
         required: true
         type: string
 
 permissions:
-  contents: read
   pull-requests: write
 
 jobs:
@@ -35,46 +30,26 @@ jobs:
       MODEL_URL: 'https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct.Q4_K_M.gguf'
 
     steps:
-      - name: 1. Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: 2. Generate Model URL Hash
+      - name: 1. Generate Model URL Hash
         id: model_hash
+        # Create a unique hash from the model URL for reliable caching.
         run: echo "hash=$(echo -n '${{ env.MODEL_URL }}' | sha256sum | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
-      - name: 3. Cache AI Model
+      - name: 2. Cache AI Model
         id: cache-model
         uses: actions/cache@v4
         with:
+          # The path where the model will be stored.
           path: ./model.gguf
+          # The cache key includes the runner's OS and the model hash.
           key: ${{ runner.os }}-gguf-model-${{ steps.model_hash.outputs.hash }}
 
-      - name: 4. Download AI Model if not cached
+      - name: 3. Download AI Model if not cached
         if: steps.cache-model.outputs.cache-hit != 'true'
+        # Use curl to download the model, consistent with the working example.
         run: curl -L -o ./model.gguf "${{ env.MODEL_URL }}"
 
-      - name: 5. Install Git
-        run: |
-          apt-get update
-          apt-get install -y git
-
-      - name: 6. Generate code diff
-        id: generate_diff
-        run: |
-          git fetch --prune --unshallow || true
-          git diff ${{ inputs.base_sha }} ${{ inputs.head_sha }} > diff.txt
-          if [ ! -s diff.txt ]; then
-            echo "No code changes detected. Skipping review."
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-            echo "Diff generated successfully. Size: $(wc -c < diff.txt) bytes"
-          fi
-
-      - name: 7. Construct Prompt
-        if: steps.generate_diff.outputs.skip == 'false'
+      - name: 4. Construct Prompt
         run: |
           PROMPT_FILE="prompt.txt"
           SYSTEM_PROMPT="You are an expert code reviewer AI. Your task is to analyze the following code diff and provide concise, constructive feedback. Focus on potential bugs, logical errors, style violations, and areas for improved clarity or performance. Do not comment on trivial changes. Frame your feedback as helpful suggestions. Output your review in Markdown format."
@@ -85,14 +60,13 @@ jobs:
 
           Here is the code diff to review:
           \`\`\`diff
-          $(cat diff.txt)
+          ${{ inputs.code_diff }}
           \`\`\`
 
           Please provide your review now.
           EOF
 
-      - name: 8. Run LLM Inference
-        if: steps.generate_diff.outputs.skip == 'false'
+      - name: 5. Run LLM Inference
         run: |
           echo "Starting LLM inference... This may take a few minutes."
           # Use the llama-cli executable from the Docker container.
@@ -105,14 +79,16 @@ jobs:
             > review_output.txt
           echo "LLM inference complete."
 
-      - name: 9. Format and Post Comment
-        if: steps.generate_diff.outputs.skip == 'false'
+      - name: 6. Format and Post Comment
         env:
           # GITHUB_TOKEN is automatically available to the runner.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ inputs.pr_number }}
         run: |
-          # The GitHub CLI (gh) is pre-installed on GitHub-hosted runners.
+          # The GitHub CLI (gh) is pre-installed on GitHub-hosted runners, but not in this container.
+          # We need to install it.
+          apt-get update && apt-get install -y gh
+
           COMMENT_BODY=$(cat <<EOF
           ### 🤖 AI Code Review
 
@@ -123,5 +99,5 @@ jobs:
           $(cat review_output.txt)
           EOF
           )
-          
+
           gh pr comment $PR_NUMBER --body "$COMMENT_BODY"

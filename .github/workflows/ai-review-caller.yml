@@ -1,5 +1,5 @@
 # .github/workflows/ai-review-caller.yml
-# This workflow triggers the reusable code review workflow.
+# This workflow triggers the reusable code review workflow within the same repository.
 
 name: Trigger AI Code Review
 
@@ -8,16 +8,34 @@ on:
     types: [opened, reopened, synchronize]
 
 jobs:
+  generate-diff:
+    runs-on: ubuntu-latest
+    outputs:
+      diff: ${{ steps.diff.outputs.diff }}
+    steps:
+      - name: 1. Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Fetch all history for all branches and tags
+          fetch-depth: 0
+
+      - name: 2. Generate diff
+        id: diff
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.sha }}
+          git fetch origin ${{ github.event.pull_request.head.sha }}
+          # Use a HEREDOC to handle multi-line diff output
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "diff<<$EOF" >> $GITHUB_OUTPUT
+          git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
+
   trigger-review:
-    uses: Richard-m-j/code-turtle/.github/workflows/reusable-review.yml@main
-    
+    needs: generate-diff
+    uses: ./.github/workflows/reusable-review.yml
     permissions:
-      contents: read
       pull-requests: write
-      
     with:
       pr_number: ${{ github.event.pull_request.number }}
-      base_sha: ${{ github.event.pull_request.base.sha }}
-      head_sha: ${{ github.event.pull_request.head.sha }}
-      
+      code_diff: ${{ needs.generate-diff.outputs.diff }}
     secrets: inherit

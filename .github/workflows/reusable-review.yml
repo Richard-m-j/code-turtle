@@ -9,10 +9,11 @@ on:
         description: 'The number of the pull request'
         required: true
         type: number
-      code_diff:
-        description: 'The code diff string to be reviewed'
-        required: true
+      model_url:
+        description: 'URL of the GGUF model to download'
+        required: false
         type: string
+        default: 'https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct.Q4_K_M.gguf'
 
 permissions:
   pull-requests: write
@@ -21,36 +22,40 @@ jobs:
   code-review:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    container: yusiwen/llama.cpp:latest
+    container: yusiwen/llama.cpp:b6451
     env:
-      MODEL_URL: 'https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct.Q4_K_M.gguf'
+      MODEL_URL: ${{ inputs.model_url }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR_NUMBER: ${{ inputs.pr_number }}
+      GH_REPO: ${{ github.repository }}
 
     steps:
-      - name: 1. Generate Model URL Hash
+      - name: 1. Download Diff Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: code-diff-artifact
+          path: .
+
+      - name: 2. Generate Model URL Hash
         id: model_hash
         run: echo "hash=$(echo -n '${{ env.MODEL_URL }}' | sha256sum | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
-      - name: 2. Cache AI Model
+      - name: 3. Cache AI Model
         id: cache-model
         uses: actions/cache@v4
         with:
           path: ./model.gguf
-          # The primary key is specific, including the Git ref.
-          key: ${{ runner.os }}-gguf-model-${{ steps.model_hash.outputs.hash }}-${{ github.ref }}
-          # The restore key is a fallback that finds the latest cache with the same model hash, regardless of the branch.
-          restore-keys: |
-            ${{ runner.os }}-gguf-model-${{ steps.model_hash.outputs.hash }}-
+          key: ${{ runner.os }}-gguf-model-${{ steps.model_hash.outputs.hash }}
 
-      - name: 3. Download AI Model if not cached
+      - name: 4. Download AI Model if not cached
         if: steps.cache-model.outputs.cache-hit != 'true'
         run: curl -L -o ./model.gguf "${{ env.MODEL_URL }}"
 
-      - name: 4. Construct Prompt
-        env:
-          CODE_DIFF: ${{ inputs.code_diff }}
+      - name: 5. Construct Prompt
         run: |
           PROMPT_FILE="prompt.txt"
           SYSTEM_PROMPT="You are an expert code reviewer AI. Your task is to analyze the following code diff and provide concise, constructive feedback. Focus on potential bugs, logical errors, style violations, and areas for improved clarity or performance. Do not comment on trivial changes. Frame your feedback as helpful suggestions. Output your review in Markdown format."
+          CODE_DIFF=$(cat code.diff)
           cat <<EOF > $PROMPT_FILE
           $SYSTEM_PROMPT
 
@@ -62,7 +67,9 @@ jobs:
           Please provide your review now.
           EOF
 
-      - name: 5. Run LLM Inference
+      - name: 6. Run LLM Inference
+        id: inference
+        continue-on-error: true # Continue even if this step fails to post a failure comment
         env:
           LD_LIBRARY_PATH: /llama.cpp
         run: |
@@ -76,22 +83,30 @@ jobs:
             > review_output.txt
           echo "LLM inference complete."
 
-      - name: 6. Format and Post Comment
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ inputs.pr_number }}
-          GH_REPO: ${{ github.repository }}
+      - name: 7. Format and Post Comment
+        # Note: Installing dependencies on each run is inefficient.
+        # For better performance, consider creating a custom Docker image
+        # with git and gh pre-installed.
         run: |
           apt-get update && apt-get install -y git gh
           
-          {
-            echo "### 🤖 AI Code Review"
-            echo ""
-            echo "Here are some suggestions based on the latest changes. Please treat these as pointers for consideration, not mandates."
-            echo ""
-            echo "---"
-            echo ""
-            cat review_output.txt
-          } > final_comment.md
-
+          if [[ ${{ steps.inference.outcome }} == 'failure' ]]; then
+            {
+              echo "### 🤖 AI Code Review Failed"
+              echo ""
+              echo "The AI code review could not be completed due to an error during the inference step."
+            } > final_comment.md
+          else
+            {
+              echo "### 🤖 AI Code Review"
+              echo ""
+              echo "Here are some suggestions based on the latest changes. Please treat these as pointers for consideration, not mandates."
+              echo ""
+              echo "---"
+              echo ""
+              cat review_output.txt
+            } > final_comment.md
+          fi
+          
+          # Explicitly tell gh which repository to use with the --repo flag
           gh pr comment $PR_NUMBER --repo $GH_REPO --body-file final_comment.md

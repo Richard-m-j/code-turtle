@@ -22,7 +22,8 @@ jobs:
   code-review:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    container: yusiwen/llama.cpp:b6451
+    # The 'light' image is purpose-built for this workflow
+    container: ghcr.io/richard-m-j/llama.cpp:light
     env:
       MODEL_URL: ${{ inputs.model_url }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -69,12 +70,10 @@ jobs:
 
       - name: 6. Run LLM Inference
         id: inference
-        continue-on-error: true # Continue even if this step fails to post a failure comment
-        env:
-          LD_LIBRARY_PATH: /llama.cpp
+        continue-on-error: true
         run: |
           echo "Starting LLM inference... This may take a few minutes."
-          /llama.cpp/llama-cli \
+          ./llama-cli \
             -m ./model.gguf \
             -f prompt.txt \
             --ctx-size 4096 \
@@ -83,13 +82,8 @@ jobs:
             > review_output.txt
           echo "LLM inference complete."
 
-      - name: 7. Format and Post Comment
-        # Note: Installing dependencies on each run is inefficient.
-        # For better performance, consider creating a custom Docker image
-        # with git and gh pre-installed.
+      - name: 7. Format and Post Comment ✨
         run: |
-          apt-get update && apt-get install -y git gh
-          
           if [[ ${{ steps.inference.outcome }} == 'failure' ]]; then
             {
               echo "### 🤖 AI Code Review Failed"
@@ -108,5 +102,4 @@ jobs:
             } > final_comment.md
           fi
           
-          # Explicitly tell gh which repository to use with the --repo flag
           gh pr comment $PR_NUMBER --repo $GH_REPO --body-file final_comment.md

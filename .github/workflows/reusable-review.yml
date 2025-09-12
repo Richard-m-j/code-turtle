@@ -14,8 +14,10 @@ on:
         required: true
         type: string
 
+# Reusable workflow should also declare the permissions it needs
 permissions:
   pull-requests: write
+  contents: read
 
 jobs:
   code-review:
@@ -39,56 +41,112 @@ jobs:
 
       - name: 3. Download AI Model if not cached
         if: steps.cache-model.outputs.cache-hit != 'true'
-        run: curl -L -o ./model.gguf "${{ env.MODEL_URL }}"
+        run: |
+          set -euo pipefail
+          echo "Model cache miss — downloading model to ./model.gguf"
+          mkdir -p "$(pwd)"
+          curl -fL -o ./model.gguf "${{ env.MODEL_URL }}"
+          echo "Download complete: $(stat -c '%s' ./model.gguf 2>/dev/null || true) bytes"
 
-      - name: 4. Construct Prompt
+      - name: 4. Construct Prompt (write diff safely to a file)
         env:
           CODE_DIFF: ${{ inputs.code_diff }}
         run: |
+          set -euo pipefail
           PROMPT_FILE="prompt.txt"
-          SYSTEM_PROMPT="You are an expert code reviewer AI. Your task is to analyze the following code diff and provide concise, constructive feedback. Focus on potential bugs, logical errors, style violations, and areas for improved clarity or performance. Do not comment on trivial changes. Frame your feedback as helpful suggestions. Output your review in Markdown format."
-          cat <<EOF > $PROMPT_FILE
-          $SYSTEM_PROMPT
+          echo "Writing prompt to $PROMPT_FILE"
 
-          Here is the code diff to review:
-          \`\`\`diff
-          $CODE_DIFF
-          \`\`\`
+          cat > "$PROMPT_FILE" <<'SYS'
+          You are an expert code reviewer AI. Your task is to analyze the following code diff and provide concise, constructive feedback. Focus on potential bugs, logical errors, style violations, and areas for improved clarity or performance. Do not comment on trivial changes. Frame your feedback as helpful suggestions. Output your review in Markdown format. SYS
 
-          Please provide your review now.
-          EOF
+          echo "" >> "$PROMPT_FILE"
+          echo "Here is the code diff to review:" >> "$PROMPT_FILE"
+          echo '```diff' >> "$PROMPT_FILE"
 
-      - name: 5. Run LLM Inference
+          # Append the diff from the input (preserves newlines)
+          printf '%s\n' "$CODE_DIFF" >> "$PROMPT_FILE"
+
+          echo '```' >> "$PROMPT_FILE"
+
+          echo "Prompt written (first 1KB):"
+          head -c 1024 "$PROMPT_FILE" || true
+
+      - name: 5. Preflight checks for llama binary & run LLM Inference
         env:
           LD_LIBRARY_PATH: /llama.cpp
         run: |
-          echo "Starting LLM inference... This may take a few minutes."
-          /llama.cpp/llama-cli \
-            -m ./model.gguf \
-            -f prompt.txt \
-            --ctx-size 4096 \
-            --n-predict 1024 \
-            --temp 0.2 \
-            > review_output.txt
-          echo "LLM inference complete."
+          set -euo pipefail
+          echo "Checking for llama binary and model file"
 
-      - name: 6. Format and Post Comment
+          # Basic checks
+          if [ ! -x /llama.cpp/llama-cli ]; then
+            echo "WARNING: /llama.cpp/llama-cli not executable or not present. Listing /llama.cpp for debug:"
+            ls -la /llama.cpp || true
+            # try one more common path
+            if [ -x ./llama-cli ]; then
+              CLI_PATH="./llama-cli"
+            else
+              echo "ERROR: llama-cli not found. Exiting."
+              exit 1
+            fi
+          else
+            CLI_PATH="/llama.cpp/llama-cli"
+          fi
+
+          # Check that model file exists (if using cached file)
+          if [ ! -f ./model.gguf ]; then
+            echo "Warning: ./model.gguf not present in workspace. If you expected it to be cached/downloaded, check prior steps."
+          else
+            echo "Model file size: $(stat -c '%s' ./model.gguf || true) bytes"
+          fi
+
+          echo "Starting LLM inference (if present) — output will be written to review_output.txt"
+          # Keep predictions modest in case runner memory is limited. Adjust flags as needed.
+          "$CLI_PATH" -m ./model.gguf -f prompt.txt --ctx-size 4096 --n-predict 512 --temp 0.2 > review_output.txt || true
+          echo "LLM inference step finished (exit code ignored to allow posting whatever we have)."
+
+          echo "Preview of review output (first 2KB):"
+          head -c 2048 review_output.txt || true
+
+      - name: 6. Format and Post Comment (use actions/github-script — no apt-get)
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = 'review_output.txt';
+            let body = '';
+            try {
+              body = fs.readFileSync(path, 'utf8');
+            } catch (err) {
+              body = '*No model output was produced or the file could not be read.*\n\n' + String(err);
+            }
+
+            const comment = [
+              "### 🤖 AI Code Review",
+              "",
+              "Here are some suggestions based on the latest changes. Please treat these as pointers for consideration, not mandates.",
+              "",
+              "---",
+              "",
+              body
+            ].join("\n");
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: parseInt(process.env.INPUT_PR_NUMBER || process.env.PR_NUMBER || '${{ inputs.pr_number }}'),
+              body: comment
+            });
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ inputs.pr_number }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          apt-get update && apt-get install -y git gh
-          
-          {
-            echo "### 🤖 AI Code Review"
-            echo ""
-            echo "Here are some suggestions based on the latest changes. Please treat these as pointers for consideration, not mandates."
-            echo ""
-            echo "---"
-            echo ""
-            cat review_output.txt
-          } > final_comment.md
 
-          # Explicitly tell gh which repository to use with the --repo flag
-          gh pr comment $PR_NUMBER --repo $GH_REPO --body-file final_comment.md
+      - name: 7. Upload full review output as artifact (optional, helps with large content)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-review-output-${{ inputs.pr_number }}
+          path: |
+            review_output.txt
+            prompt.txt
+            /tmp/full_diff.txt

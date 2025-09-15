@@ -21,7 +21,7 @@ inputs:
 
 runs:
   using: 'docker'
-  image: 'docker://ghcr.io/richard-m-j/llama-cpp:main' 
+  image: 'docker://ghcr.io/richard-m-j/llama-cpp:main'
   env:
     MODEL_URL: ${{ inputs.model_url }}
     GITHUB_TOKEN: ${{ inputs.github_token }}
@@ -62,8 +62,8 @@ runs:
       echo "" >> $PROMPT_FILE
       echo "Please provide your review now." >> $PROMPT_FILE
 
-      # Step 5: Run LLM Inference
-      /home/appuser/llama-cli \
+      # Step 5: Run LLM Inference with the corrected path
+      /app/llama-cli \
         -m ./model.gguf \
         -f prompt.txt \
         --ctx-size 4096 \

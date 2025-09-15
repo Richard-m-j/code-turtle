@@ -1,5 +1,5 @@
 # Vector Database Client (using Pinecone as an example)
-pinecone-client
+pinecone
 
 # Core library for document loading and splitting
 langchain

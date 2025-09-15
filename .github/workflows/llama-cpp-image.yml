@@ -13,9 +13,9 @@ on:
 
 # Use environment variables for consistency with your other workflows
 env:
-  # Set the image name based on the repository name
+  # Set the registry and the specific image name you requested
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: Richard-m-j/llama-cpp
 
 jobs:
   build-and-push-image:
@@ -29,20 +29,24 @@ jobs:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 2. Log in to GitHub Container Registry
+      - name: 2. Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 3. Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 3. Extract Docker metadata
+      - name: 4. Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
+          # Use the static image name defined in the environment variables
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
-      - name: 4. Build and push Docker image
+      - name: 5. Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@v5
         with:

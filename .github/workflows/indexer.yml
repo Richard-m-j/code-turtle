@@ -1,10 +1,10 @@
-name: Code-turtle Indexing Agent
+name: Code-turtle Smart Indexing Agent
 
 on:
-  # Allows you to run this workflow manually from the Actions tab
+  # Run manually for a full repository scan
   workflow_dispatch:
 
-  # Triggers the workflow on push events to the main branch
+  # Run on pushes to main for incremental updates
   push:
     branches:
       - main
@@ -15,16 +15,49 @@ jobs:
     
     steps:
       - name: 1. Checkout Repository
+        # Fetch full history to enable accurate diff between commits
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: 2. Build Docker Image
+      - name: 2. Identify Changed Files
+        id: changed_files
+        # Only run this step for 'push' events, not manual 'workflow_dispatch'
+        if: github.event_name == 'push'
+        run: |
+          # Get the list of added (A), modified (M), and deleted (D) files
+          git diff --name-status ${{ github.event.before }} ${{ github.sha }} -- > diff.txt
+          
+          # Create lists for upserting and deleting
+          awk '$1 ~ /^[AM]/ {print $2}' diff.txt > files_to_upsert.txt
+          awk '$1 == "D" {print $2}' diff.txt > files_to_delete.txt
+          
+          echo "Upserting:"
+          cat files_to_upsert.txt
+          echo "Deleting:"
+          cat files_to_delete.txt
+
+      - name: 3. Build Docker Image
         run: docker build -t code-turtle-indexer .
 
-      - name: 3. Run Indexing Container
+      - name: 4. Run Smart Indexing Container
         run: |
-          docker run --rm \
+          # Define common Docker run options
+          DOCKER_OPTIONS="--rm \
             -e PINECONE_API_KEY=${{ secrets.VECTOR_DB_API_KEY }} \
             -e PINECONE_ENVIRONMENT=${{ secrets.VECTOR_DB_ENVIRONMENT }} \
-            -e SCAN_PATH="/source_code" \
-            -v ${{ github.workspace }}:/source_code \
-            code-turtle-indexer
+            -e SCAN_PATH='/source_code'"
+          
+          # If this is a 'push' event, mount the diff files and point the script to them
+          if [ "${{ github.event_name }}" == "push" ]; then
+            DOCKER_OPTIONS="$DOCKER_OPTIONS \
+              -e UPSERT_FILE_LIST='/source_code/files_to_upsert.txt' \
+              -e DELETE_FILE_LIST='/source_code/files_to_delete.txt'"
+          fi
+
+          # The main volume mount is always needed
+          DOCKER_OPTIONS="$DOCKER_OPTIONS \
+            -v ${{ github.workspace }}:/source_code"
+
+          # Execute the final command
+          docker run $DOCKER_OPTIONS code-turtle-indexer

@@ -22,7 +22,7 @@ inputs:
 runs:
   using: 'docker'
   # Add the 'docker://' prefix to the image name
-  image: 'docker://ghcr.io/richard-m-j/llama.cpp:light'
+  image: 'docker://ghcr.io/richard-m-j/llama.cpp:main'
   env:
     MODEL_URL: ${{ inputs.model_url }}
     GITHUB_TOKEN: ${{ inputs.github_token }}

@@ -22,13 +22,31 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: 3. Identify Changed Files
+      - name: 2. Identify Changed Files
         id: changed_files
         if: github.event_name == 'push'
         run: |
+          echo "-> Comparing commits"
+          echo "Before SHA: ${{ github.event.before }}"
+          echo "Current SHA: ${{ github.sha }}"
+          echo "------------------------------------"
+          
           git diff --name-status ${{ github.event.before }} ${{ github.sha }} -- > diff.txt
+          
+          echo "-> Raw git diff output (diff.txt):"
+          cat diff.txt
+          echo "------------------------------------"
+          
           awk '$1 ~ /^[AM]/ {print $2}' diff.txt > files_to_upsert.txt
           awk '$1 == "D" {print $2}' diff.txt > files_to_delete.txt
+          
+          echo "-> Files to Upsert:"
+          cat files_to_upsert.txt
+          echo "------------------------------------"
+          
+          echo "-> Files to Delete:"
+          cat files_to_delete.txt
+          echo "------------------------------------"
 
       - name: 4. Build and Tag Docker Image
         run: |

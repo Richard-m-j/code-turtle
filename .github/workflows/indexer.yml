@@ -1,9 +1,10 @@
-# .github/workflows/indexer.yml
-
 name: Code-turtle Indexing Agent
 
 on:
+  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+
+  # Triggers the workflow on push events to the main branch
   push:
     branches:
       - main
@@ -23,10 +24,7 @@ jobs:
           cache: 'pip'
 
       - name: 3. Install Dependencies
-        run: |
-          pip install -r scripts/requirements.txt
--         # Installs tree-sitter grammars required for code splitting
--         python -c "from tree_sitter_languages import get_parser; get_parser('python'); get_parser('javascript'); get_parser('go'); get_parser('typescript')"
+        run: pip install -r scripts/requirements.txt
 
       - name: 4. Run the Indexing Agent
         run: python scripts/indexer.py

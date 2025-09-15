@@ -8,11 +8,22 @@ langchain
 langchain-community
 
 # For generating high-quality sentence/code embeddings
+# scripts/requirements.txt
+
+# Vector Database Client (using Pinecone as an example)
+pinecone-client
+
+# Core library for document loading and splitting
+langchain
+langchain-community
+
+# For generating high-quality sentence/code embeddings
 sentence-transformers
 
 # For language-aware code splitting
 tree-sitter
-tree-sitter-languages
+- tree-sitter-languages
++ tree-sitter-languages[python,javascript,go,typescript]
 
 # Utility for handling environment variables during local development
 python-dotenv

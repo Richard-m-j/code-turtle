@@ -3,10 +3,7 @@
 name: Code-turtle Indexing Agent
 
 on:
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
-
-  # Triggers the workflow on push events to the main branch
   push:
     branches:
       - main
@@ -23,17 +20,16 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-          cache: 'pip' # cache pip dependencies
+          cache: 'pip'
 
       - name: 3. Install Dependencies
         run: |
           pip install -r scripts/requirements.txt
-          # Installs tree-sitter grammars required for code splitting
-          python -c "from tree_sitter_languages import get_parser; get_parser('python'); get_parser('javascript'); get_parser('go'); get_parser('typescript')"
+-         # Installs tree-sitter grammars required for code splitting
+-         python -c "from tree_sitter_languages import get_parser; get_parser('python'); get_parser('javascript'); get_parser('go'); get_parser('typescript')"
 
       - name: 4. Run the Indexing Agent
         run: python scripts/indexer.py
         env:
-          # Pass secrets securely to the Python script as environment variables
           PINECONE_API_KEY: ${{ secrets.VECTOR_DB_API_KEY }}
           PINECONE_ENVIRONMENT: ${{ secrets.VECTOR_DB_ENVIRONMENT }}

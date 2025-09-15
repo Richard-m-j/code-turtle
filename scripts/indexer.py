@@ -25,7 +25,7 @@ EMBEDDING_MODEL_NAME = 'all-MiniLM-L6-v2'
 EMBEDDING_MODEL_DIMENSION = 384
 
 # Code Scanning Configuration
-REPO_PATH = "." # Scan the current directory
+REPO_PATH = os.getenv("SCAN_PATH", ".") # Scan path configurable via environment variable
 SUPPORTED_EXTENSIONS = {
     ".py": Language.PYTHON,
     ".js": Language.JS,

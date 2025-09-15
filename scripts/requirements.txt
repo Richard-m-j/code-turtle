@@ -1,0 +1,19 @@
+# scripts/requirements.txt
+
+# Vector Database Client (using Pinecone as an example)
+pinecone-client
+
+# Core library for document loading and splitting
+langchain
+langchain-community
+
+# For generating high-quality sentence/code embeddings
+sentence-transformers
+
+# For language-aware code splitting
+tree-sitter
+tree-sitter-languages
+
+# Utility for handling environment variables during local development
+python-dotenv
+tqdm

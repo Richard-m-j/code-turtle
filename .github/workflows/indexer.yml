@@ -17,17 +17,14 @@ jobs:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 2. Set up Python 3.10
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-          cache: 'pip'
+      - name: 2. Build Docker Image
+        run: docker build -t code-turtle-indexer .
 
-      - name: 3. Install Dependencies
-        run: pip install -r scripts/requirements.txt
-
-      - name: 4. Run the Indexing Agent
-        run: python scripts/indexer.py
-        env:
-          PINECONE_API_KEY: ${{ secrets.VECTOR_DB_API_KEY }}
-          PINECONE_ENVIRONMENT: ${{ secrets.VECTOR_DB_ENVIRONMENT }}
+      - name: 3. Run Indexing Container
+        run: |
+          docker run --rm \
+            -e PINECONE_API_KEY=${{ secrets.VECTOR_DB_API_KEY }} \
+            -e PINECONE_ENVIRONMENT=${{ secrets.VECTOR_DB_ENVIRONMENT }} \
+            -e SCAN_PATH="/source_code" \
+            -v ${{ github.workspace }}:/source_code \
+            code-turtle-indexer

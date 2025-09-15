@@ -1,63 +1,61 @@
 name: Code-turtle Smart Indexing Agent
 
 on:
-  # Run manually for a full repository scan
   workflow_dispatch:
-
-  # Run on pushes to main for incremental updates
   push:
     branches:
       - main
 
 jobs:
-  build-and-index:
+  build-run-and-push:
     runs-on: ubuntu-latest
     
     steps:
       - name: 1. Checkout Repository
-        # Fetch full history to enable accurate diff between commits
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: 2. Identify Changed Files
+      - name: 2. Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 3. Identify Changed Files
         id: changed_files
-        # Only run this step for 'push' events, not manual 'workflow_dispatch'
         if: github.event_name == 'push'
         run: |
-          # Get the list of added (A), modified (M), and deleted (D) files
           git diff --name-status ${{ github.event.before }} ${{ github.sha }} -- > diff.txt
-          
-          # Create lists for upserting and deleting
           awk '$1 ~ /^[AM]/ {print $2}' diff.txt > files_to_upsert.txt
           awk '$1 == "D" {print $2}' diff.txt > files_to_delete.txt
-          
-          echo "Upserting:"
-          cat files_to_upsert.txt
-          echo "Deleting:"
-          cat files_to_delete.txt
 
-      - name: 3. Build Docker Image
-        run: docker build -t code-turtle-indexer .
-
-      - name: 4. Run Smart Indexing Container
+      - name: 4. Build and Tag Docker Image
         run: |
-          # Define common Docker run options
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/code-turtle-indexer:latest \
+                       -t ${{ secrets.DOCKERHUB_USERNAME }}/code-turtle-indexer:${{ github.sha }} \
+                       .
+
+      - name: 5. Run Smart Indexing Container
+        run: |
           DOCKER_OPTIONS="--rm \
             -e PINECONE_API_KEY=${{ secrets.VECTOR_DB_API_KEY }} \
             -e PINECONE_ENVIRONMENT=${{ secrets.VECTOR_DB_ENVIRONMENT }} \
             -e SCAN_PATH='/source_code'"
           
-          # If this is a 'push' event, mount the diff files and point the script to them
           if [ "${{ github.event_name }}" == "push" ]; then
             DOCKER_OPTIONS="$DOCKER_OPTIONS \
               -e UPSERT_FILE_LIST='/source_code/files_to_upsert.txt' \
               -e DELETE_FILE_LIST='/source_code/files_to_delete.txt'"
           fi
 
-          # The main volume mount is always needed
           DOCKER_OPTIONS="$DOCKER_OPTIONS \
             -v ${{ github.workspace }}:/source_code"
 
-          # Execute the final command
-          docker run $DOCKER_OPTIONS code-turtle-indexer
+          docker run $DOCKER_OPTIONS ${{ secrets.DOCKERHUB_USERNAME }}/code-turtle-indexer:latest
+
+      - name: 6. Push Image to Docker Hub
+        # Only push if the event is a push to the 'main' branch
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          docker push --all-tags ${{ secrets.DOCKERHUB_USERNAME }}/code-turtle-indexer

@@ -5,14 +5,19 @@ import sys
 
 def run_script(script_name, stdin_data):
     """Runs a Python script as a subprocess, passing data via stdin."""
-    process = subprocess.run(
-        [sys.executable, script_name],
-        input=stdin_data,
-        capture_output=True,
-        text=True,
-        check=True
-    )
-    return process.stdout
+    try:
+        process = subprocess.run(
+            [sys.executable, script_name],
+            input=stdin_data,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return process.stdout
+    except subprocess.CalledProcessError as e:
+        # Print the actual error from the failed script
+        print(f"❌ Error in {script_name}:\n{e.stderr}", file=sys.stderr)
+        raise
 
 def main():
     """Main orchestration logic."""

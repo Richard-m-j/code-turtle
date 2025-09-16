@@ -2,7 +2,9 @@ import os
 import sys
 import json
 import boto3
+from dotenv import load_dotenv # <--- ADD THIS LINE
 
+load_dotenv()
 # --- Configuration ---
 AWS_REGION_NAME = os.getenv("AWS_REGION_NAME", "us-east-1")
 MODEL_ID = "anthropic.claude-3-sonnet-20240229-v1:0"

@@ -7,3 +7,4 @@ tree-sitter-languages[python,javascript,go,typescript]
 python-dotenv
 tqdm
 boto3
+serpapi

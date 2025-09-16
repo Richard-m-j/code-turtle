@@ -1,8 +1,10 @@
+# scripts/synthesizer.py
+
 import os
 import sys
 import json
 import boto3
-from dotenv import load_dotenv # <--- ADD THIS LINE
+from dotenv import load_dotenv
 
 load_dotenv()
 # --- Configuration ---
@@ -26,14 +28,17 @@ def main():
     diff = context_payload.get("diff")
     changed_files = context_payload.get("changed_files")
     retrieved_context = context_payload.get("retrieved_context")
+    web_search_summary = context_payload.get("web_search_summary") # New field
 
     # Construct the prompt
     system_prompt = """
     You are "Odyssey", an expert AI code reviewer. Your purpose is to help developers write high-quality code.
     Analyze the provided context, which includes a git diff, the full content of changed files, and the content of potentially related files from the existing codebase.
+    If web search results are provided, use them as an additional source of truth, especially when commenting on the use of new libraries or technologies.
     Provide a concise, constructive, and clear code review in Markdown format.
     - Start with a brief, high-level summary of the changes.
     - If you find specific issues (e.g., bugs, style violations, performance concerns, lack of documentation), create a bulleted list. For each issue, reference the file and line number if possible.
+    - If a new library is introduced, use the web search results to comment on its usage and best practices.
     - If there are no major issues, state that the code looks good and maybe offer a minor suggestion for improvement.
     - Be positive and encouraging. The goal is collaboration, not criticism.
     - Do NOT include the context files or the diff in your final response. Your output should only be the review itself.
@@ -43,6 +48,9 @@ def main():
     user_prompt += f"\n\n## Pull Request Diff\n\n```diff\n{diff}\n```"
     user_prompt += format_context_for_prompt(changed_files, "Full Content of Changed Files")
     user_prompt += format_context_for_prompt(retrieved_context, "Context from Potentially Related Files")
+
+    if web_search_summary:
+        user_prompt += f"\n\n## Web Search Results\n\n{web_search_summary}"
     
     # Initialize Bedrock client
     bedrock_client = boto3.client(service_name='bedrock-runtime', region_name=AWS_REGION_NAME)

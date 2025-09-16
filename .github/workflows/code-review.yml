@@ -36,6 +36,9 @@ jobs:
           PINECONE_API_KEY: ${{ secrets.VECTOR_DB_API_KEY }}
           PINECONE_ENVIRONMENT: ${{ secrets.VECTOR_DB_ENVIRONMENT }}
           
+          # --- Web Search API Key (NEW) ---
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+          
           # --- AWS Bedrock Credentials for LLM ---
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

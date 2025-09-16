@@ -1,7 +1,10 @@
+# scripts/orchestrator.py
+
 import os
 import json
 import subprocess
 import sys
+import re
 
 def run_script(script_name, stdin_data):
     """Runs a Python script as a subprocess, passing data via stdin."""
@@ -18,6 +21,24 @@ def run_script(script_name, stdin_data):
         # Print the actual error from the failed script
         print(f"❌ Error in {script_name}:\n{e.stderr}", file=sys.stderr)
         raise
+
+def find_new_imports(diff_text):
+    """
+    Parses the diff to find new import statements.
+    """
+    # Regex to find lines starting with '+' and containing 'import' or 'from'
+    import_pattern = re.compile(r'^\+\s*(?:from\s+([a-zA-Z0-9_]+)|import\s+([a-zA-Z0-9_]+))')
+    new_libraries = set()
+    
+    for line in diff_text.split('\n'):
+        match = import_pattern.match(line)
+        if match:
+            # The library name will be in either group 1 or 2
+            lib_name = match.group(1) or match.group(2)
+            if lib_name:
+                new_libraries.add(lib_name)
+    
+    return list(new_libraries)
 
 def main():
     """Main orchestration logic."""
@@ -53,16 +74,37 @@ def main():
     # 3. Call Retriever Agent
     print("🧠 Calling Context Retriever Agent...")
     retriever_script = os.path.join(os.path.dirname(__file__), 'retriever.py')
-    context_payload = run_script(retriever_script, diff_output)
+    context_payload_str = run_script(retriever_script, diff_output)
+    context_payload = json.loads(context_payload_str)
     print("✅ Context retrieved successfully.")
+    
+    # 4. Analyze diff for new libraries and call Web Search Agent if needed
+    new_libraries = find_new_imports(diff_output)
+    web_search_summary = None
+    if new_libraries:
+        print(f"🔍 Found new libraries: {', '.join(new_libraries)}. Calling Web Search Agent...")
+        search_query = f"best practices for using {new_libraries[0]} in python"
+        searcher_script = os.path.join(os.path.dirname(__file__), 'searcher.py')
+        
+        try:
+            search_result_str = run_script(searcher_script, search_query)
+            search_result = json.loads(search_result_str)
+            web_search_summary = search_result.get("web_search_summary")
+            if web_search_summary:
+                print("✅ Web search completed successfully.")
+                # Add web search results to the main context payload
+                context_payload["web_search_summary"] = web_search_summary
+        except Exception as e:
+            print(f"⚠️  Could not get web search results: {e}", file=sys.stderr)
 
-    # 4. Call Review Synthesizer Agent
+    # 5. Call Review Synthesizer Agent
     print("✍️ Calling Review Synthesizer Agent...")
     synthesizer_script = os.path.join(os.path.dirname(__file__), 'synthesizer.py')
-    review_markdown = run_script(synthesizer_script, context_payload)
+    # Pass the potentially updated context_payload to the synthesizer
+    review_markdown = run_script(synthesizer_script, json.dumps(context_payload))
     print("✅ Review synthesized successfully.")
 
-    # 5. Post review comment to PR
+    # 6. Post review comment to PR
     print(f"📤 Posting review to PR #{pr_number}...")
     review_file = "review_comment.md"
     with open(review_file, "w") as f:

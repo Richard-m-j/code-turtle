@@ -6,7 +6,6 @@ on:
 
 permissions:
   pull-requests: write
-  # Add contents: read permission to allow the checkout action
   contents: read
 
 jobs:
@@ -17,16 +16,16 @@ jobs:
       image: richardjoseph1/code-turtle-reviewer:latest
 
     steps:
-      # Step 1: Checkout the code. This will now run inside the container.
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
         with:
-          # FIX: fetch-depth: 0 is crucial. It fetches the full git history
-          # so that the 'git diff' command can find the base commit.
           fetch-depth: 0
 
-      # Step 2: Run the review workflow
-      - name: 2. Run the Review Workflow
+      # FIX: Add this step to resolve the "dubious ownership" error in Actions
+      - name: 2. Mark Git Directory as Safe
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: 3. Run the Review Workflow
         run: python /app/scripts/orchestrator.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -3,7 +3,10 @@
 import os
 import sys
 import json
-from serpapi import GoogleSearch
+import serpapi
+from dotenv import load_dotenv 
+
+load_dotenv() 
 
 def summarize_results(results):
     """
@@ -35,25 +38,24 @@ def main():
         sys.exit(1)
 
     try:
+        client = serpapi.Client(api_key=api_key)
+        
         params = {
             "q": query,
-            "api_key": api_key,
             "engine": "google",
             "gl": "us",
             "hl": "en"
         }
-        search = GoogleSearch(params)
-        results = search.get_dict()
+        
+        results = client.search(params)
         
         summary = summarize_results(results)
         
-        # Output the summary as a JSON object to be compatible with the orchestrator
         output = {"web_search_summary": summary}
         print(json.dumps(output, indent=2))
 
     except Exception as e:
         print(f"An error occurred during the web search: {e}", file=sys.stderr)
-        # Provide a fallback JSON output
         error_output = {"web_search_summary": f"An error occurred: {e}"}
         print(json.dumps(error_output, indent=2))
 

@@ -22,4 +22,4 @@ jobs:
             -e PINECONE_ENVIRONMENT=${{ secrets.VECTOR_DB_ENVIRONMENT }} \
             -e SCAN_PATH="/source_code" \
             -v ${{ github.workspace }}:/source_code \
-            your-dockerhub-username/code-turtle-indexer:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/code-turtle-indexer:latest

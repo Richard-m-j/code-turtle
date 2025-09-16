@@ -1,0 +1,56 @@
+# deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: github-ingress-deployment
+  labels:
+    app: github-ingress
+spec:
+  replicas: 2 # Start with two replicas for high availability
+  selector:
+    matchLabels:
+      app: github-ingress
+  template:
+    metadata:
+      labels:
+        app: github-ingress
+    spec:
+      containers:
+      - name: github-ingress
+        # Replace this with the actual path to your container image
+        # e.g., gcr.io/your-project/github-ingress:v0.1.0
+        image: aware-codesense/github-ingress:v0.1.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          protocol: TCP
+        env:
+        - name: GITHUB_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              # IMPORTANT: You must create a Kubernetes Secret named 'github-app-secrets'
+              # with a key named 'webhook-secret' containing your secret string.
+              # Example kubectl command:
+              # kubectl create secret generic github-app-secrets --from-literal=webhook-secret='your_super_secret_string'
+              name: github-app-secrets
+              key: webhook-secret
+        # Liveness and Readiness probes to ensure the service is healthy
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        resources:
+          requests:
+            cpu: "100m" # 0.1 vCPU
+            memory: "128Mi"
+          limits:
+            cpu: "500m" # 0.5 vCPU
+            memory: "256Mi"

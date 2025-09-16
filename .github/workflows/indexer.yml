@@ -19,8 +19,13 @@ jobs:
       # Step 2: Identify files that have changed in the latest push
       - name: Get Changed Files
         id: changed-files
+        shell: bash
         run: |
-          echo "files=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }})" >> $GITHUB_OUTPUT
+          {
+            echo 'files<<EOF'
+            git diff --name-only ${{ github.event.before }} ${{ github.event.after }}
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
       # Step 3: Run the indexer container, passing the changed files as arguments
       # This step is skipped if no files were changed in the push.

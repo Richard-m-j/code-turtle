@@ -11,13 +11,10 @@ jobs:
   code-review:
     runs-on: ubuntu-latest
     
-    # Define the full image name as a job-level environment variable
-    env:
-      REVIEWER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/code-turtle-reviewer:latest
-
-    # Use the environment variable to specify the container image
+    # FIX: Hardcode the full image name. 
+    # The container block is evaluated before env and secret contexts are available.
     container:
-      image: ${{ env.REVIEWER_IMAGE }}
+      image: richardjoseph1/code-turtle-reviewer:latest
 
     steps:
       - name: 1. Checkout Repository
@@ -28,6 +25,7 @@ jobs:
       - name: 2. Run the Review Workflow
         run: python /app/scripts/orchestrator.py
         env:
+          # You still use secrets here for the script's environment
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
           PINECONE_API_KEY: ${{ secrets.VECTOR_DB_API_KEY }}

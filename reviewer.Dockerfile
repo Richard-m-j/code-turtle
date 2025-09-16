@@ -4,12 +4,12 @@ FROM python:3.10-slim
 # Set the working directory inside the container
 WORKDIR /app
 
-# Copy and install dependencies
+# Copy and install dependencies from the requirements file
 COPY scripts/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all the scripts needed for the review process
-COPY scripts/ .
+# FIX: Copy the local scripts directory into a scripts directory in the container
+# This creates the correct path: /app/scripts/
+COPY scripts/ scripts/
 
-# Set the entrypoint to run the orchestrator
-ENTRYPOINT ["python", "scripts/orchestrator.py"]
+# No ENTRYPOINT is needed, as the command is specified in the workflow

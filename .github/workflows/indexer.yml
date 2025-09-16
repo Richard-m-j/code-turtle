@@ -1,18 +1,37 @@
 name: Code-turtle Indexing Agent
 
 on:
-  workflow_run:
-    workflows: ["Build and Push Docker Images"]
-    types:
-      - completed
+  # Triggers the workflow on push events for the main branch
+  push:
+    branches:
+      - main
 
 jobs:
   run-indexer:
     runs-on: ubuntu-latest
     steps:
-      - name: Run Indexing Container
+      # fetch-depth: 0 is required to get the full git history to compare commits.
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Step 2: Identify files that have changed in the latest push
+      - name: Get Changed Files
+        id: changed-files
         run: |
+          echo "files=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }})" >> $GITHUB_OUTPUT
+
+      # Step 3: Run the indexer container, passing the changed files as arguments
+      # This step is skipped if no files were changed in the push.
+      - name: Run Indexing Container
+        if: steps.changed-files.outputs.files != ''
+        run: |
+          echo "Indexing the following files:"
+          echo "${{ steps.changed-files.outputs.files }}"
+          
           docker run --rm \
             -e PINECONE_API_KEY=${{ secrets.VECTOR_DB_API_KEY }} \
             -e PINECONE_ENVIRONMENT=${{ secrets.VECTOR_DB_ENVIRONMENT }} \
-            ${{ secrets.DOCKERHUB_USERNAME }}/code-turtle-indexer:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/code-turtle-indexer:latest \
+            ${{ steps.changed-files.outputs.files }}

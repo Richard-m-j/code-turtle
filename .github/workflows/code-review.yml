@@ -6,26 +6,29 @@ on:
 
 permissions:
   pull-requests: write
+  # Add contents: read permission to allow the checkout action
+  contents: read
 
 jobs:
   code-review:
     runs-on: ubuntu-latest
     
-    # FIX: Hardcode the full image name. 
-    # The container block is evaluated before env and secret contexts are available.
     container:
       image: richardjoseph1/code-turtle-reviewer:latest
 
     steps:
+      # Step 1: Checkout the code. This will now run inside the container.
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
         with:
+          # FIX: fetch-depth: 0 is crucial. It fetches the full git history
+          # so that the 'git diff' command can find the base commit.
           fetch-depth: 0
 
+      # Step 2: Run the review workflow
       - name: 2. Run the Review Workflow
         run: python /app/scripts/orchestrator.py
         env:
-          # You still use secrets here for the script's environment
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
           PINECONE_API_KEY: ${{ secrets.VECTOR_DB_API_KEY }}

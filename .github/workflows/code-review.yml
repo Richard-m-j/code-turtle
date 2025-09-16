@@ -19,6 +19,9 @@ jobs:
           fetch-depth: 0
 
       - name: 2. Run the Review Workflow
+        # FIX: Added the 'run' keyword to execute the script.
+        # The script is located at /app, which is the WORKDIR in the Dockerfile.
+        run: python /app/scripts/orchestrator.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}

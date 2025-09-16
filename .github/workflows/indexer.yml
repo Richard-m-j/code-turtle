@@ -10,33 +10,16 @@ jobs:
   run-indexer:
     runs-on: ubuntu-latest
     steps:
-      # fetch-depth: 0 is required to get the full git history to compare commits.
+      # Step 1: Checkout the full repository to the runner's workspace
       - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      # Step 2: Identify files that have changed in the latest push
-      - name: Get Changed Files
-        id: changed-files
-        shell: bash
-        run: |
-          {
-            echo 'files<<EOF'
-            git diff --name-only ${{ github.event.before }} ${{ github.event.after }}
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
-
-      # Step 3: Run the indexer container, passing the changed files as arguments
-      # This step is skipped if no files were changed in the push.
+      # Step 2: Run the indexer container
       - name: Run Indexing Container
-        if: steps.changed-files.outputs.files != ''
         run: |
-          echo "Indexing the following files:"
-          echo "${{ steps.changed-files.outputs.files }}"
-          
           docker run --rm \
             -e PINECONE_API_KEY=${{ secrets.VECTOR_DB_API_KEY }} \
             -e PINECONE_ENVIRONMENT=${{ secrets.VECTOR_DB_ENVIRONMENT }} \
-            ${{ secrets.DOCKERHUB_USERNAME }}/code-turtle-indexer:latest \
-            ${{ steps.changed-files.outputs.files }}
+            -e SCAN_PATH="/source_code" \
+            -v ${{ github.workspace }}:/source_code \
+            your-dockerhub-username/code-turtle-indexer:latest

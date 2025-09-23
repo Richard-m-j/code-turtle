@@ -50,13 +50,13 @@ def get_code_files():
             ext = os.path.splitext(file)[1]
             if ext in SUPPORTED_EXTENSIONS:
                 found_files.append(os.path.join(root, file))
-    print(f"✅ Found {len(found_files)} supported code files.")
+    print(f" Found {len(found_files)} supported code files.")
     return found_files
 
 def chunk_code_files(file_paths):
     """Loads and chunks code files using a language-aware splitter."""
     all_chunks = []
-    print("🧠 Starting code chunking process...")
+    print(" Starting code chunking process...")
     for file_path in tqdm(file_paths, desc="Chunking files"):
         ext = os.path.splitext(file_path)[1]
         language = SUPPORTED_EXTENSIONS[ext]
@@ -92,12 +92,12 @@ def chunk_code_files(file_paths):
         except Exception as e:
             print(f"⚠️ Could not process file {file_path}: {e}")
 
-    print(f"✅ Generated {len(all_chunks)} code chunks.")
+    print(f" Generated {len(all_chunks)} code chunks.")
     return all_chunks
 
 def main():
     """Main function to run the indexing process."""
-    print("🚀 Starting Code-turtle Indexing Agent...")
+    print(" Starting Code-turtle Indexing Agent...")
     
     # 1. Initialize Vector DB
     if not PINECONE_API_KEY or not PINECONE_ENVIRONMENT:
@@ -115,12 +115,12 @@ def main():
         time.sleep(1) # Wait for index to be ready
     
     index = pc.Index(PINECONE_INDEX_NAME)
-    print("✅ Pinecone initialized.")
+    print(" Pinecone initialized.")
 
     # 2. Initialize Embedding Model
-    print("🤖 Loading embedding model...")
+    print(" Loading embedding model...")
     model = SentenceTransformer(EMBEDDING_MODEL_NAME)
-    print("✅ Embedding model loaded.")
+    print(" Embedding model loaded.")
 
     # 3. Find and Chunk Code
     files = get_code_files()
@@ -134,7 +134,7 @@ def main():
         return
 
     # 4. Generate Embeddings and Upsert to Vector DB
-    print(f"📦 Upserting {len(chunks)} vectors to Pinecone in batches...")
+    print(f" Upserting {len(chunks)} vectors to Pinecone in batches...")
     batch_size = 100
     for i in tqdm(range(0, len(chunks), batch_size), desc="Upserting to DB"):
         batch = chunks[i:i+batch_size]
@@ -158,9 +158,9 @@ def main():
         # Upsert the batch
         index.upsert(vectors=vectors_to_upsert)
 
-    print("\n🎉 Indexing complete! Your codebase memory is ready.")
+    print("\n Indexing complete! Your codebase memory is ready.")
     stats = index.describe_index_stats()
-    print(f"📊 Pinecone Index Stats: {stats['total_vector_count']} total vectors.")
+    print(f" Pinecone Index Stats: {stats['total_vector_count']} total vectors.")
 
 
 if __name__ == "__main__":

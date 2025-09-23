@@ -17,7 +17,7 @@ TOP_K = 7 # Number of similar code chunks to retrieve
 # ADDED: Load the API Key and perform a sanity check immediately
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 if not PINECONE_API_KEY:
-    print("❌ FATAL: PINECONE_API_KEY not found. Check that your .env file is in the project root.", file=sys.stderr)
+    print("FATAL: PINECONE_API_KEY not found. Check that your .env file is in the project root.", file=sys.stderr)
     sys.exit(1)
 
 
@@ -43,11 +43,11 @@ def read_file_content(file_path):
             return f.read()
     except FileNotFoundError:
         # CHANGED: Direct warnings to stderr to keep stdout clean for the JSON payload
-        print(f"⚠️  Warning: File not found during context retrieval: {file_path}", file=sys.stderr)
+        print(f"Warning: File not found during context retrieval: {file_path}", file=sys.stderr)
         return None
     except Exception as e:
         # CHANGED: Direct warnings to stderr
-        print(f"⚠️  Warning: Error reading file {file_path}: {e}", file=sys.stderr)
+        print(f"Warning: Error reading file {file_path}: {e}", file=sys.stderr)
         return None
 
 def main():

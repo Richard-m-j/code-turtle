@@ -19,7 +19,7 @@ def run_script(script_name, stdin_data):
         return process.stdout
     except subprocess.CalledProcessError as e:
         # Print the actual error from the failed script
-        print(f"❌ Error in {script_name}:\n{e.stderr}", file=sys.stderr)
+        print(f"Error in {script_name}:\n{e.stderr}", file=sys.stderr)
         raise
 
 def find_new_imports(diff_text):
@@ -42,7 +42,7 @@ def find_new_imports(diff_text):
 
 def main():
     """Main orchestration logic."""
-    print("🚀 Orchestrator starting...")
+    print("Orchestrator starting...")
 
     # 1. Load PR context from GitHub event file
     event_path = os.getenv("GITHUB_EVENT_PATH")
@@ -56,10 +56,10 @@ def main():
     base_sha = event_data['pull_request']['base']['sha']
     head_sha = event_data['pull_request']['head']['sha']
 
-    print(f"✅ Loaded context for PR #{pr_number} (Base: {base_sha[:7]}, Head: {head_sha[:7]})")
+    print(f"Loaded context for PR #{pr_number} (Base: {base_sha[:7]}, Head: {head_sha[:7]})")
 
     # 2. Generate git diff
-    print("📝 Generating git diff...")
+    print("Generating git diff...")
     diff_process = subprocess.run(
         ['git', 'diff', f"{base_sha}...{head_sha}"],
         capture_output=True,
@@ -68,21 +68,21 @@ def main():
     )
     diff_output = diff_process.stdout
     if not diff_output.strip():
-        print("✅ No code changes detected. Exiting.")
+        print("No code changes detected. Exiting.")
         return
 
     # 3. Call Retriever Agent
-    print("🧠 Calling Context Retriever Agent...")
+    print("Calling Context Retriever Agent...")
     retriever_script = os.path.join(os.path.dirname(__file__), 'retriever.py')
     context_payload_str = run_script(retriever_script, diff_output)
     context_payload = json.loads(context_payload_str)
-    print("✅ Context retrieved successfully.")
+    print("Context retrieved successfully.")
     
     # 4. Analyze diff for new libraries and call Web Search Agent if needed
     new_libraries = find_new_imports(diff_output)
     web_search_summary = None
     if new_libraries:
-        print(f"🔍 Found new libraries: {', '.join(new_libraries)}. Calling Web Search Agent...")
+        print(f"Found new libraries: {', '.join(new_libraries)}. Calling Web Search Agent...")
         search_query = f"best practices for using {new_libraries[0]} in python"
         searcher_script = os.path.join(os.path.dirname(__file__), 'searcher.py')
         
@@ -91,21 +91,21 @@ def main():
             search_result = json.loads(search_result_str)
             web_search_summary = search_result.get("web_search_summary")
             if web_search_summary:
-                print("✅ Web search completed successfully.")
+                print("Web search completed successfully.")
                 # Add web search results to the main context payload
                 context_payload["web_search_summary"] = web_search_summary
         except Exception as e:
-            print(f"⚠️  Could not get web search results: {e}", file=sys.stderr)
+            print(f"Could not get web search results: {e}", file=sys.stderr)
 
     # 5. Call Review Synthesizer Agent
-    print("✍️ Calling Review Synthesizer Agent...")
+    print("Calling Review Synthesizer Agent...")
     synthesizer_script = os.path.join(os.path.dirname(__file__), 'synthesizer.py')
     # Pass the potentially updated context_payload to the synthesizer
     review_markdown = run_script(synthesizer_script, json.dumps(context_payload))
-    print("✅ Review synthesized successfully.")
+    print("Review synthesized successfully.")
 
     # 6. Post review comment to PR
-    print(f"📤 Posting review to PR #{pr_number}...")
+    print(f"Posting review to PR #{pr_number}...")
     review_file = "review_comment.md"
     with open(review_file, "w") as f:
         f.write(review_markdown)
@@ -116,7 +116,7 @@ def main():
     )
     
     os.remove(review_file)
-    print("🎉 Review posted successfully! Orchestration complete.")
+    print("Review posted successfully! Orchestration complete.")
 
 if __name__ == "__main__":
     main()

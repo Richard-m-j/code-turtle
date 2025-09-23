@@ -73,14 +73,14 @@ def main():
         review_text = response_body['content'][0]['text']
         
         # Add a header to the review
-        final_review = "###  Odyssey AI Code Review 🤖\n\n" + review_text
+        final_review = "### Odyssey AI Code Review\n\n" + review_text
         print(final_review)
         
     except Exception as e:
         error_message = f"Error invoking Bedrock model: {e}"
         print(error_message, file=sys.stderr)
         # Provide a fallback message to post on the PR
-        print("### Odyssey AI Code Review 🤖\n\nSorry, I encountered an error while generating the review. Please check the GitHub Actions logs for details.")
+        print("### Odyssey AI Code Review\n\nSorry, I encountered an error while generating the review. Please check the GitHub Actions logs for details.")
 
 if __name__ == "__main__":
     main()

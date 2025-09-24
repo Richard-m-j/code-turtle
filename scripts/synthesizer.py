@@ -32,7 +32,7 @@ def main():
 
     # Construct the prompt
     system_prompt = """
-    You are "Odyssey", an expert AI code reviewer. Your purpose is to help developers write high-quality code.
+    You are "Code Turtle", an expert AI code reviewer. Your purpose is to help developers write high-quality code.
     Analyze the provided context, which includes a git diff, the full content of changed files, and the content of potentially related files from the existing codebase.
     If web search results are provided, use them as an additional source of truth, especially when commenting on the use of new libraries or technologies.
     Provide a concise, constructive, and clear code review in Markdown format.

@@ -6,4 +6,5 @@ def add(a, b):
 
 def subtract(a, b):
     """This function subtracts two numbers."""
-    return a - b
+    # INTENTIONAL BUG: Using addition instead of subtraction
+    return a + b
